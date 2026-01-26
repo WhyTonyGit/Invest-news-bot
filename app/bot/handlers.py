@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from rapidfuzz import process
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot import texts
 from app.bot.keyboards import (
@@ -28,16 +29,16 @@ from app.db.repo import (
     set_notifications,
     update_settings,
 )
+from app.config import Settings
 from app.utils.normalize import normalize_text
 
 router = Router()
 
 
-async def _get_companies(data: dict[str, Any]) -> dict[str, list[str]]:
-    if "companies" not in data:
-        path = Path(data["companies_path"])
-        data["companies"] = json.loads(path.read_text(encoding="utf-8"))
-    return data["companies"]
+@lru_cache(maxsize=1)
+def _get_companies(companies_path: str) -> dict[str, list[str]]:
+    path = Path(companies_path)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _find_candidates(query: str, companies: dict[str, list[str]]) -> list[tuple[str, str]]:
@@ -68,17 +69,23 @@ async def cmd_help(message: Message) -> None:
 
 
 @router.message(Command("add"))
-async def cmd_add(message: Message, command: CommandObject, state: FSMContext) -> None:
+async def cmd_add(
+    message: Message,
+    command: CommandObject,
+    state: FSMContext,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    companies_path: str,
+) -> None:
     if command.args:
-        await handle_company_query(message, state, command.args)
+        await handle_company_query(message, state, sessionmaker, settings, companies_path, command.args)
         return
     await state.set_state(AddCompanyState.waiting_for_query)
     await message.answer(texts.ASK_COMPANY_TEXT)
 
 
 @router.message(Command("list"))
-async def cmd_list(message: Message) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def cmd_list(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         subs = await list_subscriptions(session, message.from_user.id)
     if not subs:
@@ -97,21 +104,27 @@ async def add_company_button(message: Message, state: FSMContext) -> None:
 
 
 @router.message(AddCompanyState.waiting_for_query)
-async def handle_company_query(message: Message, state: FSMContext, query: str | None = None) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def handle_company_query(
+    message: Message,
+    state: FSMContext,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    companies_path: str,
+    query: str | None = None,
+) -> None:
     async with sessionmaker() as session:
         await ensure_user(
             session,
             message.from_user.id,
-            message.bot["default_notifications_enabled"],
-            message.bot["default_quiet_hours"],
-            message.bot["default_poll_seconds"],
-            message.bot["default_match_threshold"],
-            message.bot["default_hourly_limit"],
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
         )
 
     await state.clear()
-    companies = await _get_companies(message.bot)
+    companies = _get_companies(companies_path)
     candidates = _find_candidates(query or message.text, companies)
     if not candidates:
         await message.answer("Не нашел совпадений. Попробуйте другой запрос.")
@@ -120,8 +133,7 @@ async def handle_company_query(message: Message, state: FSMContext, query: str |
 
 
 @router.message(F.text == "📋 Мои компании")
-async def my_companies(message: Message) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def my_companies(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         subs = await list_subscriptions(session, message.from_user.id)
     if not subs:
@@ -134,16 +146,14 @@ async def my_companies(message: Message) -> None:
 
 
 @router.message(F.text == "🔔 Включить уведомления")
-async def enable_notifications(message: Message) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def enable_notifications(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await set_notifications(session, message.from_user.id, True)
     await message.answer(texts.NOTIFICATIONS_ON, reply_markup=main_menu_keyboard())
 
 
 @router.message(F.text == "🔕 Отключить уведомления")
-async def disable_notifications(message: Message) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def disable_notifications(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await set_notifications(session, message.from_user.id, False)
     await message.answer(texts.NOTIFICATIONS_OFF, reply_markup=main_menu_keyboard())
@@ -167,8 +177,7 @@ async def remove_subscription_prompt(callback: CallbackQuery, state: FSMContext)
 
 
 @router.callback_query(F.data == "subs:clear")
-async def clear_subs(callback: CallbackQuery) -> None:
-    sessionmaker = callback.message.bot["sessionmaker"]
+async def clear_subs(callback: CallbackQuery, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await clear_subscriptions(session, callback.from_user.id)
     await callback.message.answer("Подписки очищены.", reply_markup=main_menu_keyboard())
@@ -182,18 +191,21 @@ async def back_to_menu(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("add:"))
-async def add_company(callback: CallbackQuery) -> None:
+async def add_company(
+    callback: CallbackQuery,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
     ticker = callback.data.split(":", 1)[1]
-    sessionmaker = callback.message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await ensure_user(
             session,
             callback.from_user.id,
-            callback.message.bot["default_notifications_enabled"],
-            callback.message.bot["default_quiet_hours"],
-            callback.message.bot["default_poll_seconds"],
-            callback.message.bot["default_match_threshold"],
-            callback.message.bot["default_hourly_limit"],
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
         )
         added = await add_subscription(session, callback.from_user.id, ticker)
     if added:
@@ -204,9 +216,8 @@ async def add_company(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("stop:"))
-async def stop_company(callback: CallbackQuery) -> None:
+async def stop_company(callback: CallbackQuery, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     ticker = callback.data.split(":", 1)[1]
-    sessionmaker = callback.message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await remove_subscription(session, callback.from_user.id, ticker)
     await callback.message.answer(f"{ticker} удален из подписок.", reply_markup=main_menu_keyboard())
@@ -214,9 +225,8 @@ async def stop_company(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("settings:poll:"))
-async def settings_poll(callback: CallbackQuery) -> None:
+async def settings_poll(callback: CallbackQuery, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     poll = int(callback.data.split(":")[-1])
-    sessionmaker = callback.message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await update_settings(session, callback.from_user.id, polling_interval=poll)
     await callback.message.answer(f"Частота обновления: {poll} сек.")
@@ -230,9 +240,8 @@ async def settings_quiet(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("settings:match:"))
-async def settings_match(callback: CallbackQuery) -> None:
+async def settings_match(callback: CallbackQuery, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     threshold = int(callback.data.split(":")[-1])
-    sessionmaker = callback.message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await update_settings(session, callback.from_user.id, match_threshold=threshold)
     await callback.message.answer("Уровень совпадения обновлен.")
@@ -240,9 +249,8 @@ async def settings_match(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("settings:limit:"))
-async def settings_limit(callback: CallbackQuery) -> None:
+async def settings_limit(callback: CallbackQuery, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     limit = int(callback.data.split(":")[-1])
-    sessionmaker = callback.message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await update_settings(session, callback.from_user.id, hourly_limit=limit)
     await callback.message.answer(f"Лимит {limit} новостей/час установлен.")
@@ -250,17 +258,19 @@ async def settings_limit(callback: CallbackQuery) -> None:
 
 
 @router.message(F.text.regexp(r"^\d{2}:\d{2}-\d{2}:\d{2}$"))
-async def handle_quiet_hours(message: Message) -> None:
-    sessionmaker = message.bot["sessionmaker"]
+async def handle_quiet_hours(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await update_settings(session, message.from_user.id, quiet_hours=message.text)
     await message.answer("Тихий режим обновлен.")
 
 
 @router.message(RemoveCompanyState.waiting_for_ticker)
-async def remove_by_ticker(message: Message, state: FSMContext) -> None:
+async def remove_by_ticker(
+    message: Message,
+    state: FSMContext,
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
     ticker = message.text.strip().upper()
-    sessionmaker = message.bot["sessionmaker"]
     async with sessionmaker() as session:
         await remove_subscription(session, message.from_user.id, ticker)
     await state.clear()

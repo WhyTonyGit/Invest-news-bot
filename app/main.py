@@ -6,11 +6,13 @@ import signal
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.handlers import router
+from app.bot.middlewares import DatabaseMiddleware
 from app.config import BASE_DIR, load_settings
 from app.db.models import Base, FeedSource
 from app.db.repo import upsert_sources
@@ -45,19 +47,15 @@ async def main() -> None:
     async with sessionmaker() as session:
         await upsert_sources(session, build_sources())
 
-    bot = Bot(settings.bot_token, parse_mode="HTML")
+    bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    dp["sessionmaker"] = sessionmaker
-    dp["companies_path"] = str(BASE_DIR / "data" / "companies_ru.json")
-    dp["default_notifications_enabled"] = settings.default_notifications_enabled
-    dp["default_quiet_hours"] = settings.default_quiet_hours
-    dp["default_poll_seconds"] = settings.default_poll_seconds
-    dp["default_match_threshold"] = settings.default_match_threshold
-    dp["default_hourly_limit"] = settings.default_hourly_limit
+    companies_path = str(BASE_DIR / "data" / "companies_ru.json")
+    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path))
+    LOGGER.info("DatabaseMiddleware enabled; sessionmaker injected into handlers.")
 
-    matcher = CompanyMatcher(Path(dp["companies_path"]))
+    matcher = CompanyMatcher(Path(companies_path))
     fetcher = FeedFetcher(settings.request_timeout, settings.fetch_concurrency)
     scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot)
 
