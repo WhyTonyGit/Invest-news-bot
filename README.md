@@ -65,8 +65,6 @@ requirements.txt
 docker compose up --build
 ```
 
-> Если используете Docker, убедитесь, что каталог `./data` существует на хосте (в него будет записан `app.db`).
-
 ## Как добавить RSS-ленту
 Добавьте запись в `app/news/sources.py`:
 ```python

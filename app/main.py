@@ -4,7 +4,6 @@ import asyncio
 import logging
 import signal
 from pathlib import Path
-from urllib.parse import urlparse
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -37,20 +36,8 @@ def build_sources() -> list[FeedSource]:
     return [FeedSource(name=source.name, url=source.url, enabled=True) for source in DEFAULT_SOURCES]
 
 
-def ensure_sqlite_path(db_url: str) -> None:
-    if not db_url.startswith("sqlite"):
-        return
-    parsed = urlparse(db_url)
-    if not parsed.path:
-        return
-    db_path = Path(parsed.path)
-    db_file = db_path if db_path.is_absolute() else Path.cwd() / db_path
-    db_file.parent.mkdir(parents=True, exist_ok=True)
-
-
 async def main() -> None:
     settings = load_settings()
-    ensure_sqlite_path(settings.db_url)
     engine = create_engine(settings.db_url)
     sessionmaker = create_sessionmaker(engine)
     await prepare_database(engine)
