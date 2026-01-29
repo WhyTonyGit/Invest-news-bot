@@ -21,6 +21,7 @@ from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
 from app.news.scheduler import NewsScheduler
 from app.news.sources import DEFAULT_SOURCES
+from app.news.summary import OpenAILLMProvider, SummaryService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,13 +52,22 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    companies_path = str(BASE_DIR / "data" / "companies_ru.json")
+    companies_path = settings.companies_dataset_path
     dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path))
     LOGGER.info("DatabaseMiddleware enabled; sessionmaker injected into handlers.")
 
     matcher = CompanyMatcher(Path(companies_path))
     fetcher = FeedFetcher(settings.request_timeout, settings.fetch_concurrency)
-    scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot)
+    provider = None
+    if settings.llm_api_key:
+        provider = OpenAILLMProvider(
+            api_key=settings.llm_api_key,
+            model=settings.llm_model,
+            timeout=settings.llm_timeout,
+            base_url=settings.llm_base_url,
+        )
+    summary_service = SummaryService(provider)
+    scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot, summary_service)
 
     async def poll_news() -> None:
         try:

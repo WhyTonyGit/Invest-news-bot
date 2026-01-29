@@ -12,6 +12,9 @@
 - Уведомления по релевантным новостям без дублей.
 - Умный матчинг по алиасам и контексту.
 - Настройки частоты поллинга, тихого режима, порога совпадения и лимитов.
+- Режимы ленты: Watchlist (по подпискам) и Market (все новости).
+- Краткие summary (LLM при наличии ключа или fallback).
+- Отчётность по тикеру: `/report <TICKER>`.
 
 ## Структура проекта
 ```
@@ -34,7 +37,11 @@
     session.py
     repo.py
   data/
-    companies_ru.json
+    companies.json
+    financials_ru.json
+    peers.json
+  scripts/
+    update_companies.py
   utils/
     normalize.py
     rate_limit.py
@@ -75,6 +82,24 @@ DEFAULT_SOURCES.append(
 )
 ```
 После перезапуска бот подхватит новую ленту.
+
+## Обновление списка компаний (MOEX + СПБ)
+```bash
+python -m app.scripts.update_companies --output app/data/companies.json
+```
+
+## LLM summary (опционально)
+Добавьте в `.env`:
+```
+LLM_API_KEY=...
+LLM_MODEL=gpt-4o-mini
+LLM_BASE_URL=https://api.openai.com
+LLM_TIMEOUT=20
+```
+Также можно переопределить путь к датасету компаний:
+```
+COMPANIES_DATASET_PATH=./app/data/companies.json
+```
 
 ## Тесты
 ```bash

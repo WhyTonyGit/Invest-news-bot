@@ -22,6 +22,15 @@ class Settings:
     sources_refresh_minutes: int
     request_timeout: int
     fetch_concurrency: int
+    companies_dataset_path: str
+    default_feed_mode: str
+    default_digest_frequency: str
+    summary_enabled: bool
+    llm_base_url: str | None
+    llm_api_key: str | None
+    llm_model: str
+    llm_timeout: int
+    report_peers_path: str
 
 
 def load_settings() -> Settings:
@@ -41,4 +50,17 @@ def load_settings() -> Settings:
         sources_refresh_minutes=int(os.environ.get("SOURCES_REFRESH_MINUTES", "60")),
         request_timeout=int(os.environ.get("REQUEST_TIMEOUT", "15")),
         fetch_concurrency=int(os.environ.get("FETCH_CONCURRENCY", "5")),
+        companies_dataset_path=os.environ.get(
+            "COMPANIES_DATASET_PATH", str(BASE_DIR / "data" / "companies.json")
+        ),
+        default_feed_mode=os.environ.get("DEFAULT_FEED_MODE", "watchlist"),
+        default_digest_frequency=os.environ.get("DEFAULT_DIGEST_FREQUENCY", "daily"),
+        summary_enabled=os.environ.get("SUMMARY_ENABLED", "true").lower() == "true",
+        llm_base_url=os.environ.get("LLM_BASE_URL") or None,
+        llm_api_key=os.environ.get("LLM_API_KEY") or None,
+        llm_model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
+        llm_timeout=int(os.environ.get("LLM_TIMEOUT", "20")),
+        report_peers_path=os.environ.get(
+            "REPORT_PEERS_PATH", str(BASE_DIR / "data" / "peers.json")
+        ),
     )

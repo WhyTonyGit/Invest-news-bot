@@ -7,7 +7,19 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Delivery, FeedSource, FeedState, NewsItem, NewsMention, Subscription, User
+from app.db.models import (
+    Cluster,
+    ClusterMember,
+    Delivery,
+    FeedSource,
+    FeedState,
+    NewsCache,
+    NewsItem,
+    NewsMention,
+    Subscription,
+    User,
+    UserSettings,
+)
 
 
 async def ensure_user(
@@ -18,9 +30,21 @@ async def ensure_user(
     default_polling_interval: int,
     default_match_threshold: int,
     default_hourly_limit: int,
+    default_feed_mode: str,
+    default_digest_frequency: str,
+    default_summary_enabled: bool,
 ) -> User:
     user = await session.get(User, tg_id)
     if user:
+        if user.settings is None:
+            settings = UserSettings(
+                tg_id=user.tg_id,
+                feed_mode=default_feed_mode,
+                digest_frequency=default_digest_frequency,
+                summary_enabled=default_summary_enabled,
+            )
+            session.add(settings)
+            await session.commit()
         return user
     user = User(
         tg_id=tg_id,
@@ -31,8 +55,39 @@ async def ensure_user(
         hourly_limit=default_hourly_limit,
     )
     session.add(user)
+    session.add(
+        UserSettings(
+            tg_id=tg_id,
+            feed_mode=default_feed_mode,
+            digest_frequency=default_digest_frequency,
+            summary_enabled=default_summary_enabled,
+        )
+    )
     await session.commit()
     return user
+
+
+async def get_user_settings(session: AsyncSession, tg_id: int) -> UserSettings | None:
+    return await session.get(UserSettings, tg_id)
+
+
+async def set_feed_mode(session: AsyncSession, tg_id: int, mode: str) -> None:
+    await session.execute(update(UserSettings).where(UserSettings.tg_id == tg_id).values(feed_mode=mode))
+    await session.commit()
+
+
+async def set_summary_enabled(session: AsyncSession, tg_id: int, enabled: bool) -> None:
+    await session.execute(
+        update(UserSettings).where(UserSettings.tg_id == tg_id).values(summary_enabled=enabled)
+    )
+    await session.commit()
+
+
+async def set_digest_frequency(session: AsyncSession, tg_id: int, frequency: str) -> None:
+    await session.execute(
+        update(UserSettings).where(UserSettings.tg_id == tg_id).values(digest_frequency=frequency)
+    )
+    await session.commit()
 
 
 async def list_subscriptions(session: AsyncSession, tg_id: int) -> list[Subscription]:
@@ -171,6 +226,44 @@ async def store_mentions(session: AsyncSession, news_id: int, mentions: dict[str
     for ticker, score in mentions.items():
         mention = NewsMention(news_id=news_id, ticker=ticker, score=score)
         session.add(mention)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+
+
+async def store_cluster(session: AsyncSession, category: str) -> Cluster:
+    cluster = Cluster(category=category)
+    session.add(cluster)
+    await session.commit()
+    return cluster
+
+
+async def set_cluster_representative(session: AsyncSession, cluster_id: int, news_id: int) -> None:
+    await session.execute(
+        update(Cluster).where(Cluster.id == cluster_id).values(representative_news_id=news_id)
+    )
+    await session.commit()
+
+
+async def add_cluster_member(session: AsyncSession, cluster_id: int, news_id: int) -> None:
+    session.add(ClusterMember(cluster_id=cluster_id, news_id=news_id))
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+
+
+async def get_cached_summary(session: AsyncSession, content_hash: str) -> NewsCache | None:
+    result = await session.execute(select(NewsCache).where(NewsCache.content_hash == content_hash))
+    return result.scalar_one_or_none()
+
+
+async def store_summary_cache(
+    session: AsyncSession, content_hash: str, summary: str, facts: str
+) -> None:
+    cache = NewsCache(content_hash=content_hash, summary=summary, facts=facts)
+    session.add(cache)
     try:
         await session.commit()
     except IntegrityError:

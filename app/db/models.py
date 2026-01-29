@@ -24,6 +24,9 @@ class User(Base):
     subscriptions: Mapped[list[Subscription]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    settings: Mapped["UserSettings"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class Subscription(Base):
@@ -35,6 +38,18 @@ class Subscription(Base):
     ticker: Mapped[str] = mapped_column(String(16), index=True)
 
     user: Mapped[User] = relationship(back_populates="subscriptions")
+
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    tg_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.tg_id"), primary_key=True)
+    feed_mode: Mapped[str] = mapped_column(String(32), default="watchlist")
+    digest_frequency: Mapped[str] = mapped_column(String(32), default="daily")
+    summary_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    user: Mapped[User] = relationship(back_populates="settings")
 
 
 class FeedSource(Base):
@@ -68,6 +83,41 @@ class NewsItem(Base):
     source_id: Mapped[int] = mapped_column(Integer, ForeignKey("feed_sources.id"))
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class NewsCache(Base):
+    __tablename__ = "news_cache"
+    __table_args__ = (UniqueConstraint("content_hash", name="uq_news_cache_hash"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    summary: Mapped[str] = mapped_column(Text)
+    facts: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class Cluster(Base):
+    __tablename__ = "clusters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    representative_news_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("news_items.id"))
+    category: Mapped[str] = mapped_column(String(32), default="OTHER")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    members: Mapped[list["ClusterMember"]] = relationship(
+        back_populates="cluster", cascade="all, delete-orphan"
+    )
+
+
+class ClusterMember(Base):
+    __tablename__ = "cluster_members"
+    __table_args__ = (UniqueConstraint("cluster_id", "news_id", name="uq_cluster_member"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cluster_id: Mapped[int] = mapped_column(Integer, ForeignKey("clusters.id"))
+    news_id: Mapped[int] = mapped_column(Integer, ForeignKey("news_items.id"))
+
+    cluster: Mapped[Cluster] = relationship(back_populates="members")
 
 
 class NewsMention(Base):

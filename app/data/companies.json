@@ -1,0 +1,589 @@
+[
+  {
+    "exchange": "MOEX",
+    "ticker": "SBER",
+    "name": "Сбер",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Сбер",
+      "Сбербанк",
+      "Sber",
+      "SBER",
+      "$SBER"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "GAZP",
+    "name": "Газпром",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Газпром",
+      "Gazprom",
+      "GAZP",
+      "$GAZP"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "LKOH",
+    "name": "Лукойл",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Лукойл",
+      "ЛУКОЙЛ",
+      "Lukoil",
+      "LKOH",
+      "$LKOH"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "ROSN",
+    "name": "Роснефть",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Роснефть",
+      "Rosneft",
+      "ROSN",
+      "$ROSN"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "NVTK",
+    "name": "Новатэк",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Новатэк",
+      "NOVATEK",
+      "NVTK",
+      "$NVTK"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "GMKN",
+    "name": "Норникель",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Норникель",
+      "Норильский никель",
+      "GMKN",
+      "$GMKN"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "PLZL",
+    "name": "Полюс",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Полюс",
+      "Polyus",
+      "PLZL",
+      "$PLZL"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "ALRS",
+    "name": "Алроса",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Алроса",
+      "ALRS",
+      "$ALRS"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "MGNT",
+    "name": "Магнит",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Магнит",
+      "MGNT",
+      "$MGNT"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "MVID",
+    "name": "М.Видео",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "М.Видео",
+      "МВидео",
+      "MVID",
+      "$MVID"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "CHMF",
+    "name": "Северсталь",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Северсталь",
+      "CHMF",
+      "$CHMF"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "NLMK",
+    "name": "НЛМК",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "НЛМК",
+      "NLMK",
+      "$NLMK"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "MTSS",
+    "name": "МТС",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "МТС",
+      "MTSS",
+      "$MTSS"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "AFKS",
+    "name": "Система",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Система",
+      "АФК Система",
+      "AFKS",
+      "$AFKS"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "TATN",
+    "name": "Татнефть",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Татнефть",
+      "TATN",
+      "$TATN"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "RTKM",
+    "name": "Ростелеком",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Ростелеком",
+      "RTKM",
+      "$RTKM"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "MOEX",
+    "name": "Мосбиржа",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Мосбиржа",
+      "Московская биржа",
+      "MOEX",
+      "$MOEX"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "YNDX",
+    "name": "Яндекс",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Яндекс",
+      "Yandex",
+      "YNDX",
+      "$YNDX"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "VKCO",
+    "name": "VK",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "VK",
+      "ВК",
+      "VKCO",
+      "$VKCO"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "PHOR",
+    "name": "ФосАгро",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "ФосАгро",
+      "PHOR",
+      "$PHOR"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "SNGS",
+    "name": "Сургутнефтегаз",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Сургутнефтегаз",
+      "SNGS",
+      "$SNGS"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "SNGSP",
+    "name": "Сургутнефтегаз-п",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Сургутнефтегаз-п",
+      "SNGSP",
+      "$SNGSP"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "IRKT",
+    "name": "Иркут",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Иркут",
+      "Яковлев",
+      "IRKT",
+      "$IRKT"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "RUAL",
+    "name": "Русал",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Русал",
+      "RUSAL",
+      "RUAL",
+      "$RUAL"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "ENPG",
+    "name": "En+",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "En+",
+      "ENPG",
+      "$ENPG"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "FLOT",
+    "name": "Совкомфлот",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Совкомфлот",
+      "FLOT",
+      "$FLOT"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "BELU",
+    "name": "Белуга",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Белуга",
+      "BELU",
+      "$BELU"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "POLY",
+    "name": "Polymetal",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Polymetal",
+      "Полиметалл",
+      "POLY",
+      "$POLY"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "AFLT",
+    "name": "Аэрофлот",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Аэрофлот",
+      "AFLT",
+      "$AFLT"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  },
+  {
+    "exchange": "MOEX",
+    "ticker": "TRNFP",
+    "name": "Транснефть",
+    "isin": null,
+    "type": "share",
+    "currency": "RUB",
+    "aliases": [
+      "Транснефть",
+      "TRNFP",
+      "$TRNFP"
+    ],
+    "source": {
+      "provider": "legacy",
+      "url": null,
+      "asof_date": null
+    },
+    "updated_at": "2026-01-29T14:48:53.938509+00:00"
+  }
+]

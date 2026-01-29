@@ -8,23 +8,31 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 
-from app.bot.keyboards import notification_keyboard
+from app.bot.keyboards import market_notification_keyboard, notification_keyboard
 from app.db.repo import (
+    add_cluster_member,
     count_hourly_deliveries,
+    get_cached_summary,
     get_feed_state,
+    get_user_settings,
     has_delivery,
     list_enabled_sources,
     list_subscriptions,
     list_users_for_delivery,
+    set_cluster_representative,
+    store_cluster,
     store_delivery,
     store_mentions,
     store_news_item,
+    store_summary_cache,
     update_feed_state,
 )
-from app.news.dedupe import canonical_hash, is_similar
+from app.news.dedupe import canonical_hash
 from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
 from app.news.parser import parse_feed
+from app.news.service import NewsCandidate, NewsCluster, NewsService, impact_score
+from app.news.summary import SummaryService
 
 LOGGER = logging.getLogger("news.scheduler")
 
@@ -36,8 +44,11 @@ class PreparedNews:
     url: str
     published_at: datetime
     source_name: str
+    source_id: int
     mentions: dict[str, int]
     canonical_hash: str
+    category: str
+    sources: list[tuple[str, str, int]]
 
 
 class NewsScheduler:
@@ -47,14 +58,16 @@ class NewsScheduler:
         sessionmaker,
         fetcher: FeedFetcher,
         bot,
+        summary_service: SummaryService,
         tz_name: str = "Europe/Moscow",
     ) -> None:
         self.matcher = matcher
+        self.service = NewsService(matcher)
         self.sessionmaker = sessionmaker
         self.fetcher = fetcher
         self.bot = bot
+        self.summary_service = summary_service
         self.tz = ZoneInfo(tz_name)
-        self._recent_titles: list[str] = []
 
     async def run_once(self) -> None:
         async with self.sessionmaker() as session:
@@ -64,10 +77,31 @@ class NewsScheduler:
             return
 
         async with aiohttp.ClientSession() as http_session:
-            tasks = [self._process_source(http_session, source) for source in sources]
-            await asyncio.gather(*tasks)
+            tasks = [self._fetch_source(http_session, source) for source in sources]
+            results = await asyncio.gather(*tasks)
 
-    async def _process_source(self, http_session: aiohttp.ClientSession, source) -> None:
+        candidates: list[NewsCandidate] = []
+        for result in results:
+            if result is None:
+                continue
+            source, items, etag_new, modified_new, latest_ts, last_item_ts = result
+            await self._update_state(source.id, etag_new, modified_new, latest_ts)
+            candidates.extend(
+                self.service.prepare_candidates(
+                    items,
+                    source.name,
+                    source.id,
+                    last_item_ts=last_item_ts,
+                    require_mentions=False,
+                )
+            )
+
+        clusters = self.service.cluster(candidates)
+        for cluster in clusters:
+            prepared = self._prepare_cluster(cluster)
+            await self._store_and_deliver(prepared)
+
+    async def _fetch_source(self, http_session: aiohttp.ClientSession, source):
         async with self.sessionmaker() as session:
             state = await get_feed_state(session, source.id)
         etag = state.etag if state else None
@@ -76,36 +110,14 @@ class NewsScheduler:
         result = await self.fetcher.fetch(http_session, source.url, etag, last_modified)
         if result.status == 304 or not result.content:
             await self._update_state(source.id, result.etag, result.last_modified, None)
-            return
+            return None
         items, etag_new, modified_new = parse_feed(result.content)
         latest_ts: datetime | None = None
-        prepared: list[PreparedNews] = []
         for item in items:
-            if state and state.last_item_ts and item.published <= state.last_item_ts:
-                continue
-            mentions = self.matcher.match(item.title, item.summary)
-            if not mentions:
-                continue
-            hash_value = canonical_hash(item.title, item.summary)
-            if self._is_recent_duplicate(item.title):
-                continue
-            prepared.append(
-                PreparedNews(
-                    title=item.title,
-                    summary=item.summary,
-                    url=item.link,
-                    published_at=item.published,
-                    source_name=source.name,
-                    mentions=mentions,
-                    canonical_hash=hash_value,
-                )
-            )
             latest_ts = max(latest_ts or item.published, item.published)
-
-        await self._update_state(source.id, etag_new or result.etag, modified_new or result.last_modified, latest_ts)
-
-        for news in prepared:
-            await self._store_and_deliver(news, source.id)
+        return source, items, etag_new or result.etag, modified_new or result.last_modified, latest_ts, (
+            state.last_item_ts if state else None
+        )
 
     async def _update_state(
         self, source_id: int, etag: str | None, last_modified: str | None, latest_ts: datetime | None
@@ -113,52 +125,74 @@ class NewsScheduler:
         async with self.sessionmaker() as session:
             await update_feed_state(session, source_id, etag, last_modified, latest_ts)
 
-    def _is_recent_duplicate(self, title: str) -> bool:
-        for existing in self._recent_titles:
-            if is_similar(title, existing, threshold=90):
-                return True
-        self._recent_titles.append(title)
-        if len(self._recent_titles) > 200:
-            self._recent_titles = self._recent_titles[-100:]
-        return False
+    def _prepare_cluster(self, cluster: NewsCluster) -> PreparedNews:
+        representative = sorted(cluster.items, key=lambda item: item.published_at, reverse=True)[0]
+        sources = [(item.source_name, item.url, item.source_id) for item in cluster.items]
+        return PreparedNews(
+            title=representative.title,
+            summary=representative.summary,
+            url=representative.url,
+            published_at=representative.published_at,
+            source_name=representative.source_name,
+            source_id=representative.source_id,
+            mentions=representative.mentions,
+            canonical_hash=representative.canonical_hash,
+            category=representative.category,
+            sources=sources,
+        )
 
-    async def _store_and_deliver(self, news: PreparedNews, source_id: int) -> None:
+    async def _store_and_deliver(self, news: PreparedNews) -> None:
         async with self.sessionmaker() as session:
-            stored = await store_news_item(
-                session,
-                news.canonical_hash,
-                news.title,
-                news.url,
-                news.published_at,
-                source_id,
-                news.summary,
-                None,
-            )
-            if stored is None:
-                return
-            await store_mentions(session, stored.id, news.mentions)
+            cluster = await store_cluster(session, news.category)
+        stored_items: list[int] = []
+        for _, source_url, source_id in news.sources:
+            async with self.sessionmaker() as session:
+                stored = await store_news_item(
+                    session,
+                    canonical_hash(news.title, news.summary, source_url),
+                    news.title,
+                    source_url,
+                    news.published_at,
+                    source_id=source_id,
+                    summary=news.summary,
+                    raw=None,
+                )
+                if stored is None:
+                    continue
+                stored_items.append(stored.id)
+                if news.mentions:
+                    await store_mentions(session, stored.id, news.mentions)
+                await add_cluster_member(session, cluster.id, stored.id)
+        if stored_items:
+            async with self.sessionmaker() as session:
+                await set_cluster_representative(session, cluster.id, stored_items[0])
+        await self._deliver_to_users(stored_items[0] if stored_items else None, news)
 
-        await self._deliver_to_users(stored.id, news)
-
-    async def _deliver_to_users(self, news_id: int, news: PreparedNews) -> None:
+    async def _deliver_to_users(self, news_id: int | None, news: PreparedNews) -> None:
         async with self.sessionmaker() as session:
             users = await list_users_for_delivery(session)
 
         for user in users:
-            if not await self._user_should_receive(user, news.mentions):
-                continue
+            async with self.sessionmaker() as session:
+                settings = await get_user_settings(session, user.tg_id)
+            feed_mode = settings.feed_mode if settings else "watchlist"
+            if feed_mode == "watchlist":
+                if not await self._user_should_receive(user, news.mentions):
+                    continue
             if not self._check_quiet_hours(user.quiet_hours):
                 continue
-            async with self.sessionmaker() as session:
-                if await has_delivery(session, news_id, user.tg_id):
-                    continue
+            if news_id is not None:
+                async with self.sessionmaker() as session:
+                    if await has_delivery(session, news_id, user.tg_id):
+                        continue
             async with self.sessionmaker() as session:
                 hourly_count = await count_hourly_deliveries(session, user.tg_id)
             if hourly_count >= user.hourly_limit:
                 continue
-            await self._send_news(user.tg_id, news)
-            async with self.sessionmaker() as session:
-                await store_delivery(session, news_id, user.tg_id)
+            await self._send_news(user.tg_id, news, settings)
+            if news_id is not None:
+                async with self.sessionmaker() as session:
+                    await store_delivery(session, news_id, user.tg_id)
 
     async def _user_should_receive(self, user, mentions: dict[str, int]) -> bool:
         async with self.sessionmaker() as session:
@@ -181,24 +215,54 @@ class NewsScheduler:
             return not (start <= now <= end)
         return not (now >= start or now <= end)
 
-    async def _send_news(self, tg_id: int, news: PreparedNews) -> None:
-        companies = " ".join(f"#{ticker}" for ticker in news.mentions.keys())
+    async def _send_news(self, tg_id: int, news: PreparedNews, settings) -> None:
+        companies = " ".join(f"#{ticker}" for ticker in news.mentions.keys()) or "—"
         published = news.published_at.astimezone(self.tz).strftime("%H:%M МСК")
-        summary = (news.summary or "").strip()
-        summary_line = (summary[:200] + "...") if summary else ""
+        summary_line = ""
+        if settings and settings.summary_enabled:
+            summary_line = await self._get_or_build_summary(news)
+        sources_lines = "\n".join(
+            f"• <a href=\"{url}\">{name}</a>" for name, url, _ in news.sources[:5]
+        )
+        if not sources_lines:
+            sources_lines = "—"
         text = (
             f"<b>{news.title}</b>\n"
             f"{summary_line}\n"
             f"Компании: {companies}\n"
-            f"Источник: {news.source_name}\n"
+            f"Категория: {news.category} · Impact: {impact_score(news.category)}\n"
+            f"Источники:\n{sources_lines}\n"
             f"Время: {published}"
         )
-        for ticker in news.mentions.keys():
+        if news.mentions:
+            for ticker in news.mentions.keys():
+                await self.bot.send_message(
+                    tg_id,
+                    text,
+                    reply_markup=notification_keyboard(news.url, ticker),
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                break
+        else:
             await self.bot.send_message(
                 tg_id,
                 text,
-                reply_markup=notification_keyboard(news.url, ticker),
+                reply_markup=market_notification_keyboard(news.url),
                 parse_mode="HTML",
                 disable_web_page_preview=True,
             )
-            break
+
+    async def _get_or_build_summary(self, news: PreparedNews) -> str:
+        summary_text = news.summary or news.title
+        content_hash = self.summary_service.hash_content(news.title, summary_text, news.url)
+        async with self.sessionmaker() as session:
+            cached = await get_cached_summary(session, content_hash)
+        if cached:
+            return cached.summary
+        summary, facts, content_hash = await self.summary_service.build_summary(
+            news.title, summary_text, news.url
+        )
+        async with self.sessionmaker() as session:
+            await store_summary_cache(session, content_hash, summary, facts)
+        return summary
