@@ -10,6 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Delivery, FeedSource, FeedState, NewsItem, NewsMention, Subscription, User
 
 
+async def get_user(session: AsyncSession, tg_id: int) -> User | None:
+    return await session.get(User, tg_id)
+
+
 async def ensure_user(
     session: AsyncSession,
     tg_id: int,
@@ -90,6 +94,11 @@ async def update_settings(
     if not values:
         return
     await session.execute(update(User).where(User.tg_id == tg_id).values(**values))
+    await session.commit()
+
+
+async def set_hourly_limit(session: AsyncSession, tg_id: int, limit: int | None) -> None:
+    await session.execute(update(User).where(User.tg_id == tg_id).values(hourly_limit=limit))
     await session.commit()
 
 

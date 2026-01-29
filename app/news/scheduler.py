@@ -153,7 +153,7 @@ class NewsScheduler:
                     continue
             async with self.sessionmaker() as session:
                 hourly_count = await count_hourly_deliveries(session, user.tg_id)
-            if hourly_count >= user.hourly_limit:
+            if user.hourly_limit is not None and hourly_count >= user.hourly_limit:
                 continue
             await self._send_news(user.tg_id, news)
             async with self.sessionmaker() as session:

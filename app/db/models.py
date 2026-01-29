@@ -18,7 +18,7 @@ class User(Base):
     quiet_hours: Mapped[str] = mapped_column(String(32), default="23:00-07:00")
     polling_interval: Mapped[int] = mapped_column(Integer, default=60)
     match_threshold: Mapped[int] = mapped_column(Integer, default=3)
-    hourly_limit: Mapped[int] = mapped_column(Integer, default=20)
+    hourly_limit: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     subscriptions: Mapped[list[Subscription]] = relationship(
