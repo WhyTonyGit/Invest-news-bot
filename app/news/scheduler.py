@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
@@ -24,20 +23,12 @@ from app.db.repo import (
 from app.news.dedupe import canonical_hash, is_similar
 from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
+from app.news.models import PreparedNews
 from app.news.parser import parse_feed
+from app.news.time_utils import normalize_ts
+from app.news.presenters import build_news_text
 
 LOGGER = logging.getLogger("news.scheduler")
-
-
-@dataclass
-class PreparedNews:
-    title: str
-    summary: str | None
-    url: str
-    published_at: datetime
-    source_name: str
-    mentions: dict[str, int]
-    canonical_hash: str
 
 
 class NewsScheduler:
@@ -81,9 +72,11 @@ class NewsScheduler:
         latest_ts: datetime | None = None
         prepared: list[PreparedNews] = []
         for item in items:
-            if state and state.last_item_ts and item.published <= state.last_item_ts:
+            published = normalize_ts(item.published)
+            last_item_ts = normalize_ts(state.last_item_ts) if state else None
+            if last_item_ts and published and published <= last_item_ts:
                 continue
-            mentions = self.matcher.match(item.title, item.summary)
+            mentions = await self.matcher.match(item.title, item.summary)
             if not mentions:
                 continue
             hash_value = canonical_hash(item.title, item.summary)
@@ -94,15 +87,21 @@ class NewsScheduler:
                     title=item.title,
                     summary=item.summary,
                     url=item.link,
-                    published_at=item.published,
+                    published_at=published or item.published,
                     source_name=source.name,
                     mentions=mentions,
                     canonical_hash=hash_value,
                 )
             )
-            latest_ts = max(latest_ts or item.published, item.published)
+            if published:
+                latest_ts = max(latest_ts or published, published)
 
-        await self._update_state(source.id, etag_new or result.etag, modified_new or result.last_modified, latest_ts)
+        await self._update_state(
+            source.id,
+            etag_new or result.etag,
+            modified_new or result.last_modified,
+            normalize_ts(latest_ts),
+        )
 
         for news in prepared:
             await self._store_and_deliver(news, source.id)
@@ -154,7 +153,7 @@ class NewsScheduler:
                     continue
             async with self.sessionmaker() as session:
                 hourly_count = await count_hourly_deliveries(session, user.tg_id)
-            if hourly_count >= user.hourly_limit:
+            if user.hourly_limit is not None and hourly_count >= user.hourly_limit:
                 continue
             await self._send_news(user.tg_id, news)
             async with self.sessionmaker() as session:
@@ -182,17 +181,7 @@ class NewsScheduler:
         return not (now >= start or now <= end)
 
     async def _send_news(self, tg_id: int, news: PreparedNews) -> None:
-        companies = " ".join(f"#{ticker}" for ticker in news.mentions.keys())
-        published = news.published_at.astimezone(self.tz).strftime("%H:%M МСК")
-        summary = (news.summary or "").strip()
-        summary_line = (summary[:200] + "...") if summary else ""
-        text = (
-            f"<b>{news.title}</b>\n"
-            f"{summary_line}\n"
-            f"Компании: {companies}\n"
-            f"Источник: {news.source_name}\n"
-            f"Время: {published}"
-        )
+        text = build_news_text(news, self.tz)
         for ticker in news.mentions.keys():
             await self.bot.send_message(
                 tg_id,

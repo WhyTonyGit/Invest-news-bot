@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -13,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.handlers import router
 from app.bot.middlewares import DatabaseMiddleware
-from app.config import BASE_DIR, load_settings
+from app.companies import CompanyDirectoryService, build_company_directory
+from app.config import Settings, load_settings
 from app.db.models import Base, FeedSource
 from app.db.repo import upsert_sources
 from app.db.session import create_engine, create_sessionmaker
@@ -38,8 +38,13 @@ def build_sources() -> list[FeedSource]:
     return [FeedSource(name=source.name, url=source.url, enabled=True) for source in DEFAULT_SOURCES]
 
 
-async def main() -> None:
-    settings = load_settings()
+async def run_app(
+    settings: Settings,
+    *,
+    bot: Bot | None = None,
+    dispatcher: Dispatcher | None = None,
+    company_directory: CompanyDirectoryService | None = None,
+) -> None:
     engine = create_engine(settings.db_url)
     sessionmaker = create_sessionmaker(engine)
     await prepare_database(engine)
@@ -47,15 +52,19 @@ async def main() -> None:
     async with sessionmaker() as session:
         await upsert_sources(session, build_sources())
 
-    bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = dispatcher or Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    companies_path = str(BASE_DIR / "data" / "companies_ru.json")
-    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path))
+    company_directory = company_directory or build_company_directory(settings)
+    try:
+        await company_directory.refresh(force=settings.companies_force_refresh_on_start)
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.warning("Company directory refresh failed on startup: %s", exc)
+    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, company_directory))
     LOGGER.info("DatabaseMiddleware enabled; sessionmaker injected into handlers.")
 
-    matcher = CompanyMatcher(Path(companies_path))
+    bot = bot or Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
+    matcher = CompanyMatcher(company_directory)
     fetcher = FeedFetcher(settings.request_timeout, settings.fetch_concurrency)
     scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot)
 
@@ -77,6 +86,11 @@ async def main() -> None:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         scheduler_engine.shutdown()
+
+
+async def main() -> None:
+    settings = load_settings()
+    await run_app(settings)
 
 
 if __name__ == "__main__":
