@@ -28,13 +28,14 @@ class Settings:
     companies_cache_backend: str
     companies_cache_path: str
     companies_fallback_path: str
+    companies_force_refresh_on_start: bool
 
 
 def load_settings() -> Settings:
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN")
     bot_token = (bot_token or "").strip()
     if not bot_token:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN (or BOT_TOKEN) is required")
 
     return Settings(
         bot_token=bot_token,
@@ -58,4 +59,8 @@ def load_settings() -> Settings:
         companies_fallback_path=os.environ.get(
             "COMPANIES_FALLBACK_PATH", str(BASE_DIR / "data" / "companies_ru.json")
         ),
+        companies_force_refresh_on_start=os.environ.get(
+            "COMPANIES_FORCE_REFRESH_ON_START", "true"
+        ).lower()
+        == "true",
     )

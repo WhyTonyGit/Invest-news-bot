@@ -20,3 +20,13 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run tests
         run: pytest -m "not integration"
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker build -t invest-news-bot:ci .

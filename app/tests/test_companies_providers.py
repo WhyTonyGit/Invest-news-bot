@@ -1,17 +1,40 @@
-import re
-
-import aiohttp
 import pytest
-from aioresponses import aioresponses
 
 from app.companies.providers.moex import MoexProvider
 from app.companies.providers.spb import SpbProvider
 
 
+class FakeResponse:
+    def __init__(self, payload: object) -> None:
+        self._payload = payload
+        self.status = 200
+
+    async def json(self) -> object:
+        return self._payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    async def __aenter__(self) -> "FakeResponse":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class FakeSession:
+    def __init__(self, payloads: dict[int | None, object]) -> None:
+        self._payloads = payloads
+
+    def get(self, url: str, params: dict | None = None):
+        start = params.get("start") if params else None
+        payload = self._payloads.get(start)
+        return FakeResponse(payload)
+
+
 @pytest.mark.asyncio
 async def test_moex_provider_pagination() -> None:
     provider = MoexProvider(base_url="https://iss.moex.com/iss", page_size=2)
-    url = provider._build_url()
 
     payload_page_1 = {
         "securities": {
@@ -29,11 +52,8 @@ async def test_moex_provider_pagination() -> None:
         }
     }
 
-    with aioresponses() as mocked:
-        mocked.get(re.compile(rf"{re.escape(url)}.*start=0.*"), payload=payload_page_1)
-        mocked.get(re.compile(rf"{re.escape(url)}.*start=2.*"), payload=payload_page_2)
-        async with aiohttp.ClientSession() as session:
-            companies = await provider.fetch(session)
+    session = FakeSession({0: payload_page_1, 2: payload_page_2})
+    companies = await provider.fetch(session)
 
     tickers = {company.ticker for company in companies}
     assert tickers == {"SBER", "GAZP", "LKOH"}
@@ -45,7 +65,6 @@ async def test_moex_provider_pagination() -> None:
 @pytest.mark.asyncio
 async def test_spb_provider_filters_exchange() -> None:
     provider = SpbProvider(base_url="https://api.alor.ru")
-    url = provider._build_url()
     payload = [
         {
             "symbol": "AAPL",
@@ -58,10 +77,8 @@ async def test_spb_provider_filters_exchange() -> None:
         {"symbol": "UNKNOWN", "name": "Missing exchange"},
     ]
 
-    with aioresponses() as mocked:
-        mocked.get(url, payload=payload)
-        async with aiohttp.ClientSession() as session:
-            companies = await provider.fetch(session)
+    session = FakeSession({None: payload})
+    companies = await provider.fetch(session)
 
     tickers = {company.ticker for company in companies}
     assert tickers == {"AAPL", "TCSG"}

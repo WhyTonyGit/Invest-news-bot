@@ -60,7 +60,7 @@ requirements.txt
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Создать `.env` на основе `.env.example`, указать `TELEGRAM_BOT_TOKEN`.
+2. Создать `.env` на основе `.env.example`, указать `TELEGRAM_BOT_TOKEN` (или legacy `BOT_TOKEN`).
 3. Запустить бота:
    ```bash
    python -m app.main
@@ -101,6 +101,7 @@ RUN_MOEX_INTEGRATION=1 pytest -m integration
 - Кэш хранится в `app/data/companies_cache.json` (путь настраивается через `COMPANIES_CACHE_PATH`).
 - TTL обновления: `COMPANIES_REFRESH_TTL_HOURS` (по умолчанию 24 часа).
 - Если API недоступно, используется кэш; если кэша нет — статический fallback-файл `app/data/companies_ru.json`.
+- По умолчанию при старте выполняется форс-обновление каталога (`COMPANIES_FORCE_REFRESH_ON_START=true`).
 - Ручное обновление кэша:
   ```bash
   python -m app.scripts.refresh_companies --force

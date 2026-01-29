@@ -96,9 +96,11 @@ class CompanyDirectoryService:
 
     async def refresh(self, force: bool = False) -> RefreshResult:
         async with self._lock:
+            LOGGER.info("Refreshing company directory (force=%s)", force)
             cache = self._load_cache()
             if cache and not force and not self._is_stale(cache[0]):
                 self._set_companies(cache[1], cache[0])
+                LOGGER.info("Using cached company directory updated at %s", cache[0].isoformat())
                 return RefreshResult(cache[1], cache[0], from_cache=True, used_fallback=False, errors=[])
 
             errors: list[str] = []
@@ -107,8 +109,17 @@ class CompanyDirectoryService:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 tasks = [self._fetch_provider(provider, session, errors) for provider in self._providers]
                 results = await asyncio.gather(*tasks)
-            for batch in results:
+            provider_counts: dict[str, int] = {}
+            for name, batch in results:
+                provider_counts[name] = len(batch)
                 companies.extend(batch)
+            merged_preview = len(self._merge(companies)) if companies else 0
+            LOGGER.info(
+                "MOEX fetched: %s, SPB fetched: %s, merged: %s",
+                provider_counts.get("MOEX", 0),
+                provider_counts.get("SPB", 0),
+                merged_preview,
+            )
 
             if companies:
                 merged = self._merge(companies)
@@ -119,12 +130,19 @@ class CompanyDirectoryService:
 
             if cache:
                 self._set_companies(cache[1], cache[0])
+                LOGGER.warning(
+                    "Using cached company directory due to provider errors: %s", errors or "no data returned"
+                )
                 return RefreshResult(cache[1], cache[0], from_cache=True, used_fallback=False, errors=errors)
 
             fallback_companies = self._load_fallback()
             if fallback_companies:
                 updated_at = datetime.now(timezone.utc)
                 self._set_companies(fallback_companies, updated_at)
+                LOGGER.warning(
+                    "Using fallback company directory due to provider errors: %s",
+                    errors or "no data returned",
+                )
                 return RefreshResult(
                     fallback_companies,
                     updated_at,
@@ -146,14 +164,14 @@ class CompanyDirectoryService:
         provider: CompanyProvider,
         session: aiohttp.ClientSession,
         errors: list[str],
-    ) -> list[Company]:
+    ) -> tuple[str, list[Company]]:
         try:
-            return await provider.fetch(session)
+            return provider.name, await provider.fetch(session)
         except Exception as exc:  # noqa: BLE001
             message = f"{provider.name} fetch failed: {exc}"
             LOGGER.warning(message)
             errors.append(message)
-            return []
+            return provider.name, []
 
     def _is_stale(self, updated_at: datetime) -> bool:
         return datetime.now(timezone.utc) - updated_at > self._ttl

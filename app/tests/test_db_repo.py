@@ -7,10 +7,16 @@ from app.db.session import create_engine, create_sessionmaker
 
 
 @pytest.fixture
-async def sessionmaker() -> async_sessionmaker:
+def sessionmaker() -> async_sessionmaker:
     engine = create_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+
+    async def init_models() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    import asyncio
+
+    asyncio.run(init_models())
     return create_sessionmaker(engine)
 
 
