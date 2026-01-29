@@ -204,3 +204,34 @@ async def test_search_matches_aliases(tmp_path: Path) -> None:
     await service.refresh(force=True)
     results = await service.search("сбер")
     assert results[0].ticker == "SBER"
+
+
+@pytest.mark.asyncio
+async def test_directory_search_finds_known(tmp_path: Path) -> None:
+    now = datetime.now(timezone.utc)
+    provider = FakeProvider(
+        [
+            Company(
+                exchange="MOEX",
+                ticker="SBER",
+                name="Сбербанк",
+                isin=None,
+                type="share",
+                currency="RUB",
+                aliases=["Сбербанк", "SBER", "Сбер"],
+                source={"provider": "test"},
+                updated_at=now,
+            )
+        ]
+    )
+    service = CompanyDirectoryService(
+        providers=[provider],
+        cache_path=tmp_path / "companies_cache.json",
+        ttl_hours=0,
+        fallback_path=tmp_path / "fallback.json",
+    )
+    await service.refresh(force=True)
+    results_ticker = await service.search("SBER")
+    results_name = await service.search("сбер")
+    assert results_ticker[0].ticker == "SBER"
+    assert results_name[0].ticker == "SBER"

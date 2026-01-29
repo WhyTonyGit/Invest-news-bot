@@ -17,8 +17,9 @@ async def test_help_handler_mentions_support() -> None:
 
 @pytest.mark.asyncio
 async def test_help_menu_mentions_support() -> None:
-    message = SimpleNamespace(answer=AsyncMock())
+    bot = SimpleNamespace(send_message=AsyncMock())
+    message = SimpleNamespace(chat=SimpleNamespace(id=12345), bot=bot)
     await help_menu(message)
-    message.answer.assert_awaited()
-    args, kwargs = message.answer.await_args
-    assert "@its_for_git" in args[0]
+    bot.send_message.assert_awaited()
+    args, kwargs = bot.send_message.await_args
+    assert "@its_for_git" in kwargs["text"]

@@ -23,4 +23,4 @@ async def test_send_message(bot: Bot) -> None:
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not chat_id:
         pytest.skip("TELEGRAM_CHAT_ID not set")
-    await bot.send_message(chat_id, "Integration test message")
+    await bot.send_message(chat_id, "SMOKE: help")

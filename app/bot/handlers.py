@@ -186,7 +186,11 @@ async def feed_mode_menu(message: Message) -> None:
 
 @router.message(F.text == "❓ Помощь")
 async def help_menu(message: Message) -> None:
-    await message.answer(texts.HELP_TEXT, reply_markup=help_support_keyboard())
+    await message.bot.send_message(
+        chat_id=message.chat.id,
+        text=texts.HELP_TEXT,
+        reply_markup=help_support_keyboard(),
+    )
 
 
 @router.callback_query(F.data == "subs:remove")

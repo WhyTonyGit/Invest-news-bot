@@ -59,46 +59,7 @@ class MOEXProvider(CompanyProvider):
         self.base_url = base_url.rstrip("/")
 
     async def fetch(self) -> list[Company]:
-        url = f"{self.base_url}/engines/stock/markets/shares/securities.json"
-        records: list[Company] = []
-        start = 0
-        async with aiohttp.ClientSession() as session:
-            while True:
-                params = {
-                    "iss.meta": "off",
-                    "iss.only": "securities",
-                    "securities.columns": "SECID,SHORTNAME,NAME,ISIN,SECNAME,CURRENCY,FACEUNIT",
-                    "start": str(start),
-                }
-                async with session.get(url, params=params) as response:
-                    response.raise_for_status()
-                    payload = await response.json()
-                data = payload.get("securities", {})
-                items = data.get("data", [])
-                columns = data.get("columns", [])
-                if not items:
-                    break
-                for row in items:
-                    row_map = dict(zip(columns, row))
-                    ticker = str(row_map.get("SECID", "")).upper()
-                    if not ticker:
-                        continue
-                    name = str(row_map.get("SHORTNAME") or row_map.get("NAME") or ticker).strip()
-                    secname = row_map.get("SECNAME")
-                    company = Company(
-                        exchange="MOEX",
-                        ticker=ticker,
-                        name=name,
-                        isin=row_map.get("ISIN"),
-                        type=_map_type(secname),
-                        currency=row_map.get("CURRENCY") or row_map.get("FACEUNIT"),
-                        aliases=_build_aliases(ticker, name, None),
-                        source={"provider": "moex_iss", "url": str(response.url)},
-                        updated_at=datetime.now(timezone.utc),
-                    )
-                    records.append(company)
-                start += len(items)
-        return records
+        return await _fetch_moex_securities(self.base_url)
 
 
 class AlorSPBProvider(CompanyProvider):
@@ -215,7 +176,7 @@ class CompanyDirectoryService:
             self._companies = merged
             self._last_updated = datetime.now(timezone.utc)
             self._save_cache()
-            LOGGER.debug("Company directory refreshed: %s records", len(self._companies))
+            self._log_refresh_summary(records, merged)
             self._refresh_task = None
             return RefreshResult(updated=True, count=len(self._companies), error="; ".join(errors) or None)
 
@@ -223,6 +184,16 @@ class CompanyDirectoryService:
             self._companies = self._load_fallback()
         self._refresh_task = None
         return RefreshResult(updated=False, count=len(self._companies), error="; ".join(errors) or None)
+
+    def _log_refresh_summary(self, records: list[Company], merged: list[Company]) -> None:
+        moex_count = sum(1 for company in records if company.exchange == "MOEX")
+        spb_count = sum(1 for company in records if company.exchange == "SPB")
+        LOGGER.info(
+            "Company directory refreshed: MOEX=%s SPB=%s merged=%s",
+            moex_count,
+            spb_count,
+            len(merged),
+        )
 
     def _is_stale(self) -> bool:
         if not self._last_updated:
@@ -327,6 +298,49 @@ def _merge_companies(records: list[Company]) -> list[Company]:
         else:
             merged[key] = company
     return list(merged.values())
+
+
+async def _fetch_moex_securities(base_url: str) -> list[Company]:
+    url = f"{base_url.rstrip('/')}/engines/stock/markets/shares/securities.json"
+    records: list[Company] = []
+    start = 0
+    params = {
+        "iss.meta": "off",
+        "iss.only": "securities",
+        "securities.columns": "SECID,SHORTNAME,NAME,ISIN,SECNAME,CURRENCY,FACEUNIT,BOARDID",
+    }
+    async with aiohttp.ClientSession() as session:
+        while True:
+            page_params = {**params, "start": str(start)}
+            async with session.get(url, params=page_params) as response:
+                response.raise_for_status()
+                payload = await response.json()
+            data = payload.get("securities", {})
+            items = data.get("data", [])
+            columns = data.get("columns", [])
+            if not items:
+                break
+            for row in items:
+                row_map = dict(zip(columns, row))
+                ticker = str(row_map.get("SECID", "")).upper().strip()
+                if not ticker:
+                    continue
+                name = str(row_map.get("SHORTNAME") or row_map.get("NAME") or ticker).strip()
+                secname = row_map.get("SECNAME")
+                company = Company(
+                    exchange="MOEX",
+                    ticker=ticker,
+                    name=name,
+                    isin=row_map.get("ISIN"),
+                    type=_map_type(secname),
+                    currency=row_map.get("CURRENCY") or row_map.get("FACEUNIT"),
+                    aliases=_build_aliases(ticker, name, None),
+                    source={"provider": "moex_iss", "url": str(response.url)},
+                    updated_at=datetime.now(timezone.utc),
+                )
+                records.append(company)
+            start += len(items)
+    return records
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
