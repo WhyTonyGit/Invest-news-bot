@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
+from app.bot.constants import (
+    BUTTON_ADD_COMPANY,
+    BUTTON_FEED_MODE,
+    BUTTON_HELP,
+    BUTTON_MY_COMPANIES,
+    BUTTON_NOTIFICATIONS_OFF,
+    BUTTON_NOTIFICATIONS_ON,
+    BUTTON_SETTINGS,
+)
+
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     buttons = [
-        [KeyboardButton(text="➕ Добавить компанию"), KeyboardButton(text="📋 Мои компании")],
-        [KeyboardButton(text="🔔 Включить уведомления"), KeyboardButton(text="🔕 Отключить уведомления")],
-        [KeyboardButton(text="📰 Режим ленты"), KeyboardButton(text="⚙️ Настройки")],
-        [KeyboardButton(text="❓ Помощь")],
+        [KeyboardButton(text=BUTTON_ADD_COMPANY), KeyboardButton(text=BUTTON_MY_COMPANIES)],
+        [KeyboardButton(text=BUTTON_NOTIFICATIONS_ON), KeyboardButton(text=BUTTON_NOTIFICATIONS_OFF)],
+        [KeyboardButton(text=BUTTON_FEED_MODE), KeyboardButton(text=BUTTON_SETTINGS)],
+        [KeyboardButton(text=BUTTON_HELP)],
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 

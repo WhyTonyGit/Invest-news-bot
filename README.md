@@ -114,9 +114,14 @@ ALOR_BASE_URL=https://api.alor.ru
 pytest -m "not integration"
 ```
 
-Интеграционный тест Telegram (только вручную, если заданы переменные окружения):
+Интеграционные тесты Telegram (только вручную, если заданы переменные окружения):
 ```bash
 TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... pytest -m integration
+```
+
+Интеграционный тест MOEX ISS (opt-in через env var, чтобы не падать без интернета):
+```bash
+RUN_MOEX_INTEGRATION=1 pytest -m integration app/tests/test_moex_integration.py
 ```
 
 ## Примечания

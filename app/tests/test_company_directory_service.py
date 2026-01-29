@@ -157,6 +157,24 @@ async def test_refresh_no_data_no_fallback(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_refresh_uses_fallback_when_provider_returns_empty(tmp_path: Path) -> None:
+    fallback_path = tmp_path / "fallback.json"
+    fallback_payload = {"SBER": ["Сбербанк", "SBER"]}
+    fallback_path.write_text(json.dumps(fallback_payload), encoding="utf-8")
+    provider = FakeProvider([])
+    service = CompanyDirectoryService(
+        providers=[provider],
+        cache_path=tmp_path / "companies_cache.json",
+        ttl_hours=0,
+        fallback_path=fallback_path,
+    )
+    result = await service.refresh(force=True)
+    assert result.updated is False
+    companies = await service.get_all()
+    assert companies[0].ticker == "SBER"
+
+
+@pytest.mark.asyncio
 async def test_refresh_ttl_expired_triggers_provider(tmp_path: Path) -> None:
     now = datetime.now(timezone.utc)
     cache_path = tmp_path / "companies_cache.json"

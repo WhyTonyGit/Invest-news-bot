@@ -8,6 +8,15 @@ from rapidfuzz import process
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot import texts
+from app.bot.constants import (
+    BUTTON_ADD_COMPANY,
+    BUTTON_FEED_MODE,
+    BUTTON_HELP,
+    BUTTON_MY_COMPANIES,
+    BUTTON_NOTIFICATIONS_OFF,
+    BUTTON_NOTIFICATIONS_ON,
+    BUTTON_SETTINGS,
+)
 from app.bot.keyboards import (
     add_company_keyboard,
     companies_list_keyboard,
@@ -35,20 +44,27 @@ from app.utils.normalize import normalize_text
 router = Router()
 
 
-def _find_candidates(query: str, companies) -> list:
+def _find_candidates(query: str, companies: list) -> list:
     normalized_query = normalize_text(query)
-    direct = []
+    if not normalized_query:
+        return []
+    direct: list = []
     for company in companies:
         if normalized_query == normalize_text(company.ticker):
             return [company]
-        if normalized_query == normalize_text(company.name):
-            return [company]
-        if any(normalized_query in normalize_text(alias) for alias in company.aliases):
+    for company in companies:
+        name_match = normalized_query in normalize_text(company.name)
+        alias_match = any(
+            normalized_query in normalize_text(alias) for alias in (company.aliases or [])
+        )
+        if name_match or alias_match:
             direct.append(company)
     if direct:
         return direct[:5]
 
-    choices = {company.ticker: " ".join([company.name, *company.aliases]) for company in companies}
+    choices = {
+        company.ticker: " ".join([company.name, *(company.aliases or [])]) for company in companies
+    }
     matches = process.extract(normalized_query, choices, limit=5)
     matched_tickers = {ticker for ticker, score, _ in matches if score > 60}
     return [company for company in companies if company.ticker in matched_tickers]
@@ -108,7 +124,7 @@ async def cmd_list(message: Message, sessionmaker: async_sessionmaker[AsyncSessi
     await message.answer("\n".join(lines), reply_markup=main_menu_keyboard())
 
 
-@router.message(F.text == "➕ Добавить компанию")
+@router.message(F.text == BUTTON_ADD_COMPANY)
 async def add_company_button(message: Message, state: FSMContext) -> None:
     await state.set_state(AddCompanyState.waiting_for_query)
     await message.answer(texts.ASK_COMPANY_TEXT)
@@ -147,7 +163,7 @@ async def handle_company_query(
     await message.answer("Выберите компанию:", reply_markup=add_company_keyboard(options))
 
 
-@router.message(F.text == "📋 Мои компании")
+@router.message(F.text == BUTTON_MY_COMPANIES)
 async def my_companies(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         subs = await list_subscriptions(session, message.from_user.id)
@@ -160,37 +176,33 @@ async def my_companies(message: Message, sessionmaker: async_sessionmaker[AsyncS
     await message.answer("\n".join(lines), reply_markup=companies_list_keyboard())
 
 
-@router.message(F.text == "🔔 Включить уведомления")
+@router.message(F.text == BUTTON_NOTIFICATIONS_ON)
 async def enable_notifications(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await set_notifications(session, message.from_user.id, True)
     await message.answer(texts.NOTIFICATIONS_ON, reply_markup=main_menu_keyboard())
 
 
-@router.message(F.text == "🔕 Отключить уведомления")
+@router.message(F.text == BUTTON_NOTIFICATIONS_OFF)
 async def disable_notifications(message: Message, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
     async with sessionmaker() as session:
         await set_notifications(session, message.from_user.id, False)
     await message.answer(texts.NOTIFICATIONS_OFF, reply_markup=main_menu_keyboard())
 
 
-@router.message(F.text == "⚙️ Настройки")
+@router.message(F.text == BUTTON_SETTINGS)
 async def settings_menu(message: Message) -> None:
     await message.answer(texts.SETTINGS_TEXT, reply_markup=settings_keyboard())
 
 
-@router.message(F.text == "📰 Режим ленты")
+@router.message(F.text == BUTTON_FEED_MODE)
 async def feed_mode_menu(message: Message) -> None:
     await message.answer("Выберите режим ленты:", reply_markup=feed_mode_keyboard())
 
 
-@router.message(F.text == "❓ Помощь")
+@router.message(F.text == BUTTON_HELP)
 async def help_menu(message: Message) -> None:
-    await message.bot.send_message(
-        chat_id=message.chat.id,
-        text=texts.HELP_TEXT,
-        reply_markup=help_support_keyboard(),
-    )
+    await message.answer(text=texts.HELP_TEXT, reply_markup=help_support_keyboard())
 
 
 @router.callback_query(F.data == "subs:remove")

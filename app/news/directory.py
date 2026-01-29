@@ -116,16 +116,21 @@ class CompanyDirectoryService:
         self._refresh_task: asyncio.Task | None = None
 
     async def startup(self) -> None:
+        LOGGER.debug("Company directory startup")
         self._load_cache()
         if not self._companies:
+            LOGGER.debug("Cache empty, loading fallback companies")
             self._companies = self._load_fallback()
         if self._is_stale():
+            LOGGER.debug("Company directory is stale, scheduling refresh")
             self._refresh_task = asyncio.create_task(self.refresh(force=True))
 
     async def get_all(self) -> list[Company]:
         if not self._companies:
+            LOGGER.debug("Company directory empty, forcing refresh")
             await self.refresh(force=True)
         elif self._is_stale() and self._refresh_task is None:
+            LOGGER.debug("Company directory stale, scheduling background refresh")
             self._refresh_task = asyncio.create_task(self.refresh(force=True))
         return list(self._companies)
 
@@ -138,6 +143,7 @@ class CompanyDirectoryService:
         return None
 
     async def search(self, query: str, limit: int = 5) -> list[Company]:
+        LOGGER.debug("Company search query=%s", query)
         query_norm = normalize_text(query)
         companies = await self.get_all()
         if not companies:
@@ -160,10 +166,12 @@ class CompanyDirectoryService:
     async def refresh(self, force: bool = False) -> RefreshResult:
         if not force and not self._is_stale():
             return RefreshResult(updated=False, count=len(self._companies))
+        LOGGER.debug("Refreshing company directory (force=%s)", force)
         records: list[Company] = []
         errors: list[str] = []
         for provider in self._providers:
             try:
+                LOGGER.debug("Fetching companies from provider=%s", provider.__class__.__name__)
                 provider_records = await provider.fetch()
                 LOGGER.debug("Provider %s returned %s records", provider.__class__.__name__, len(provider_records))
                 records.extend(provider_records)
@@ -181,6 +189,7 @@ class CompanyDirectoryService:
             return RefreshResult(updated=True, count=len(self._companies), error="; ".join(errors) or None)
 
         if not self._companies:
+            LOGGER.debug("No provider data, loading fallback companies")
             self._companies = self._load_fallback()
         self._refresh_task = None
         return RefreshResult(updated=False, count=len(self._companies), error="; ".join(errors) or None)
@@ -207,6 +216,7 @@ class CompanyDirectoryService:
         self._last_updated = _parse_datetime(payload.get("updated_at"))
         companies = payload.get("companies", [])
         self._companies = _load_companies_from_payload(companies)
+        LOGGER.debug("Loaded %s companies from cache", len(self._companies))
 
     def _save_cache(self) -> None:
         payload = {
@@ -236,9 +246,12 @@ class CompanyDirectoryService:
                         updated_at=now,
                     )
                 )
+            LOGGER.debug("Loaded %s companies from fallback dict", len(companies))
             return companies
         if isinstance(payload, list):
-            return _load_companies_from_payload(payload)
+            companies = _load_companies_from_payload(payload)
+            LOGGER.debug("Loaded %s companies from fallback list", len(companies))
+            return companies
         return []
 
 
@@ -300,10 +313,11 @@ def _merge_companies(records: list[Company]) -> list[Company]:
     return list(merged.values())
 
 
-async def _fetch_moex_securities(base_url: str) -> list[Company]:
+async def _fetch_moex_securities(base_url: str, max_pages: int | None = None) -> list[Company]:
     url = f"{base_url.rstrip('/')}/engines/stock/markets/shares/securities.json"
     records: list[Company] = []
     start = 0
+    page = 0
     params = {
         "iss.meta": "off",
         "iss.only": "securities",
@@ -340,6 +354,9 @@ async def _fetch_moex_securities(base_url: str) -> list[Company]:
                 )
                 records.append(company)
             start += len(items)
+            page += 1
+            if max_pages is not None and page >= max_pages:
+                break
     return records
 
 
