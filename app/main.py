@@ -18,6 +18,7 @@ from app.db.models import Base, FeedSource
 from app.db.repo import upsert_sources
 from app.db.session import create_engine, create_sessionmaker
 from app.news.fetcher import FeedFetcher
+from app.news.directory import AlorSPBProvider, CompanyDirectoryService, MOEXProvider
 from app.news.matcher import CompanyMatcher
 from app.news.scheduler import NewsScheduler
 from app.news.sources import DEFAULT_SOURCES
@@ -53,10 +54,20 @@ async def main() -> None:
     dp.include_router(router)
 
     companies_path = settings.companies_dataset_path
-    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path))
+    directory = CompanyDirectoryService(
+        providers=[
+            MOEXProvider(settings.moex_iss_base_url),
+            AlorSPBProvider(settings.alor_base_url),
+        ],
+        cache_path=Path(settings.companies_cache_path),
+        ttl_hours=settings.companies_refresh_ttl_hours,
+        fallback_path=Path(companies_path),
+    )
+    await directory.startup()
+    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path, directory))
     LOGGER.info("DatabaseMiddleware enabled; sessionmaker injected into handlers.")
 
-    matcher = CompanyMatcher(Path(companies_path))
+    matcher = CompanyMatcher(await directory.get_all())
     fetcher = FeedFetcher(settings.request_timeout, settings.fetch_concurrency)
     provider = None
     if settings.llm_api_key:
@@ -67,7 +78,7 @@ async def main() -> None:
             base_url=settings.llm_base_url,
         )
     summary_service = SummaryService(provider)
-    scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot, summary_service)
+    scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot, summary_service, directory)
 
     async def poll_news() -> None:
         try:

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-
-from app.news.companies import CompaniesDataset, load_companies
+from app.news.directory import Company
 from app.utils.normalize import contains_alias, normalize_text
 
 CONTEXT_KEYWORDS = {
@@ -31,19 +29,18 @@ class MatchResult:
 
 
 class CompanyMatcher:
-    def __init__(self, companies_path: Path) -> None:
-        self.dataset = self._load_companies(companies_path)
+    def __init__(self, companies: list[Company]) -> None:
+        self._companies = companies
 
-    @staticmethod
-    def _load_companies(path: Path) -> CompaniesDataset:
-        return load_companies(path)
+    def update(self, companies: list[Company]) -> None:
+        self._companies = companies
 
     def match(self, title: str, summary: str | None) -> dict[str, int]:
         results: dict[str, int] = {}
         title_norm = normalize_text(title)
         summary_norm = normalize_text(summary or "")
 
-        for record in self.dataset.records:
+        for record in self._companies:
             aliases = record.aliases
             title_match = contains_alias(title, aliases)
             summary_match = contains_alias(summary or "", aliases) if summary else False

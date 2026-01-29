@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from functools import lru_cache
-from pathlib import Path
-
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -31,34 +28,30 @@ from app.db.repo import (
     update_settings,
 )
 from app.config import Settings
-from app.news.companies import load_companies
 from app.reports.service import build_report
 from app.utils.normalize import normalize_text
 
 router = Router()
 
 
-@lru_cache(maxsize=1)
-def _get_companies(companies_path: str) -> dict[str, list[str]]:
-    path = Path(companies_path)
-    dataset = load_companies(path)
-    return {record.ticker: record.aliases for record in dataset.records}
-
-
-def _find_candidates(query: str, companies: dict[str, list[str]]) -> list[tuple[str, str]]:
+def _find_candidates(query: str, companies) -> list[tuple[str, str]]:
     normalized_query = normalize_text(query)
     direct = []
-    for ticker, aliases in companies.items():
-        if normalized_query == normalize_text(ticker):
-            return [(ticker, aliases[0])]
-        if any(normalized_query in normalize_text(alias) for alias in aliases):
-            direct.append((ticker, aliases[0]))
+    for company in companies:
+        if normalized_query == normalize_text(company.ticker):
+            return [(company.ticker, company.name)]
+        if any(normalized_query in normalize_text(alias) for alias in company.aliases):
+            direct.append((company.ticker, company.name))
     if direct:
         return direct[:5]
 
-    choices = {ticker: " ".join(aliases) for ticker, aliases in companies.items()}
+    choices = {company.ticker: " ".join(company.aliases) for company in companies}
     matches = process.extract(normalized_query, choices, limit=5)
-    return [(ticker, companies[ticker][0]) for ticker, score, _ in matches if score > 60]
+    return [
+        (ticker, next(company.name for company in companies if company.ticker == ticker))
+        for ticker, score, _ in matches
+        if score > 60
+    ]
 
 
 @router.message(Command("start"))
@@ -93,10 +86,10 @@ async def cmd_add(
     state: FSMContext,
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
-    companies_path: str,
+    company_directory,
 ) -> None:
     if command.args:
-        await handle_company_query(message, state, sessionmaker, settings, companies_path, command.args)
+        await handle_company_query(message, state, sessionmaker, settings, company_directory, command.args)
         return
     await state.set_state(AddCompanyState.waiting_for_query)
     await message.answer(texts.ASK_COMPANY_TEXT)
@@ -127,7 +120,7 @@ async def handle_company_query(
     state: FSMContext,
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
-    companies_path: str,
+    company_directory,
     query: str | None = None,
 ) -> None:
     async with sessionmaker() as session:
@@ -145,7 +138,7 @@ async def handle_company_query(
         )
 
     await state.clear()
-    companies = _get_companies(companies_path)
+    companies = await company_directory.search(query or message.text)
     candidates = _find_candidates(query or message.text, companies)
     if not candidates:
         await message.answer("Не нашел совпадений. Попробуйте другой запрос.")

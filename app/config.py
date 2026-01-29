@@ -31,6 +31,11 @@ class Settings:
     llm_model: str
     llm_timeout: int
     report_peers_path: str
+    companies_refresh_ttl_hours: int
+    moex_iss_base_url: str
+    alor_base_url: str
+    companies_cache_backend: str
+    companies_cache_path: str
 
 
 def load_settings() -> Settings:
@@ -63,5 +68,12 @@ def load_settings() -> Settings:
         llm_timeout=int(os.environ.get("LLM_TIMEOUT", "20")),
         report_peers_path=os.environ.get(
             "REPORT_PEERS_PATH", str(BASE_DIR / "data" / "peers.json")
+        ),
+        companies_refresh_ttl_hours=int(os.environ.get("COMPANIES_REFRESH_TTL_HOURS", "24")),
+        moex_iss_base_url=os.environ.get("MOEX_ISS_BASE_URL", "https://iss.moex.com/iss"),
+        alor_base_url=os.environ.get("ALOR_BASE_URL", "https://api.alor.ru"),
+        companies_cache_backend=os.environ.get("COMPANIES_CACHE_BACKEND", "file"),
+        companies_cache_path=os.environ.get(
+            "COMPANIES_CACHE_PATH", str(BASE_DIR / "data" / "companies_cache.json")
         ),
     )

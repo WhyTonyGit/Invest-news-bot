@@ -83,9 +83,10 @@ DEFAULT_SOURCES.append(
 ```
 После перезапуска бот подхватит новую ленту.
 
-## Обновление списка компаний (MOEX + СПБ)
+## Обновление каталога компаний (MOEX ISS + Alor SPB)
+Каталог обновляется в кэше и не блокирует старт бота. `companies.json` используется только как фолбэк.
 ```bash
-python -m app.scripts.update_companies --output app/data/companies.json
+python -m app.scripts.refresh_companies --cache-path app/data/companies_cache.json
 ```
 
 ## LLM summary (опционально)
@@ -99,6 +100,13 @@ LLM_TIMEOUT=20
 Также можно переопределить путь к датасету компаний:
 ```
 COMPANIES_DATASET_PATH=./app/data/companies.json
+```
+Параметры кэша и источников:
+```
+COMPANIES_REFRESH_TTL_HOURS=24
+COMPANIES_CACHE_PATH=./app/data/companies_cache.json
+MOEX_ISS_BASE_URL=https://iss.moex.com/iss
+ALOR_BASE_URL=https://api.alor.ru
 ```
 
 ## Тесты

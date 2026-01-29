@@ -60,6 +60,7 @@ class NewsScheduler:
         fetcher: FeedFetcher,
         bot,
         summary_service: SummaryService,
+        directory,
         tz_name: str = "Europe/Moscow",
     ) -> None:
         self.matcher = matcher
@@ -68,9 +69,12 @@ class NewsScheduler:
         self.fetcher = fetcher
         self.bot = bot
         self.summary_service = summary_service
+        self.directory = directory
         self.tz = ZoneInfo(tz_name)
 
     async def run_once(self) -> None:
+        companies = await self.directory.get_all()
+        self.matcher.update(companies)
         async with self.sessionmaker() as session:
             sources = await list_enabled_sources(session)
         if not sources:

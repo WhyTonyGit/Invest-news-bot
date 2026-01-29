@@ -15,10 +15,12 @@ class DatabaseMiddleware(BaseMiddleware):
         sessionmaker: async_sessionmaker[AsyncSession],
         settings: Settings,
         companies_path: str,
+        company_directory,
     ) -> None:
         self._sessionmaker = sessionmaker
         self._settings = settings
         self._companies_path = companies_path
+        self._company_directory = company_directory
 
     async def __call__(
         self,
@@ -29,4 +31,5 @@ class DatabaseMiddleware(BaseMiddleware):
         data["sessionmaker"] = self._sessionmaker
         data["settings"] = self._settings
         data["companies_path"] = self._companies_path
+        data["company_directory"] = self._company_directory
         return await handler(event, data)
