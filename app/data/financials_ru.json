@@ -1,0 +1,24 @@
+{
+  "SBER": {
+    "name": "Сбербанк",
+    "currency": "RUB",
+    "metrics": {
+      "revenue": {"value": 3500, "prev": 3200, "period": "2023"},
+      "net_income": {"value": 1500, "prev": 1300, "period": "2023"},
+      "ebitda": {"value": 2100, "prev": 1950, "period": "2023"},
+      "fcf": {"value": 900, "prev": 850, "period": "2023"},
+      "net_debt_ebitda": {"value": 1.2, "prev": 1.3, "period": "2023"}
+    }
+  },
+  "GAZP": {
+    "name": "Газпром",
+    "currency": "RUB",
+    "metrics": {
+      "revenue": {"value": 10000, "prev": 9800, "period": "2023"},
+      "net_income": {"value": 1200, "prev": 1100, "period": "2023"},
+      "ebitda": {"value": 2500, "prev": 2400, "period": "2023"},
+      "fcf": {"value": 700, "prev": 650, "period": "2023"},
+      "net_debt_ebitda": {"value": 2.1, "prev": 2.3, "period": "2023"}
+    }
+  }
+}

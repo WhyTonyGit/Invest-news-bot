@@ -12,6 +12,9 @@
 - Уведомления по релевантным новостям без дублей.
 - Умный матчинг по алиасам и контексту.
 - Настройки частоты поллинга, тихого режима, порога совпадения и лимитов.
+- Режимы ленты: Watchlist (по подпискам) и Market (все новости).
+- Краткие summary (LLM при наличии ключа или fallback).
+- Отчётность по тикеру: `/report <TICKER>`.
 
 ## Структура проекта
 ```
@@ -34,7 +37,11 @@
     session.py
     repo.py
   data/
-    companies_ru.json
+    companies.json
+    financials_ru.json
+    peers.json
+  scripts/
+    update_companies.py
   utils/
     normalize.py
     rate_limit.py
@@ -54,7 +61,7 @@ requirements.txt
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Создать `.env` на основе `.env.example`, указать `BOT_TOKEN`.
+2. Создать `.env` на основе `.env.example`, указать `TELEGRAM_BOT_TOKEN`.
 3. Запустить бота:
    ```bash
    python -m app.main
@@ -76,9 +83,40 @@ DEFAULT_SOURCES.append(
 ```
 После перезапуска бот подхватит новую ленту.
 
+## Обновление каталога компаний (MOEX ISS + Alor SPB)
+Каталог обновляется в кэше и не блокирует старт бота. `companies.json` используется только как фолбэк.
+```bash
+python -m app.scripts.refresh_companies --cache-path app/data/companies_cache.json
+```
+
+## LLM summary (опционально)
+Добавьте в `.env`:
+```
+LLM_API_KEY=...
+LLM_MODEL=gpt-4o-mini
+LLM_BASE_URL=https://api.openai.com
+LLM_TIMEOUT=20
+```
+Также можно переопределить путь к датасету компаний:
+```
+COMPANIES_DATASET_PATH=./app/data/companies.json
+```
+Параметры кэша и источников:
+```
+COMPANIES_REFRESH_TTL_HOURS=24
+COMPANIES_CACHE_PATH=./app/data/companies_cache.json
+MOEX_ISS_BASE_URL=https://iss.moex.com/iss
+ALOR_BASE_URL=https://api.alor.ru
+```
+
 ## Тесты
 ```bash
-pytest
+pytest -m "not integration"
+```
+
+Интеграционный тест Telegram (только вручную, если заданы переменные окружения):
+```bash
+TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... pytest -m integration
 ```
 
 ## Примечания

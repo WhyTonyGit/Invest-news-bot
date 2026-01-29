@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-from functools import lru_cache
-from pathlib import Path
-
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
@@ -15,6 +11,7 @@ from app.bot import texts
 from app.bot.keyboards import (
     add_company_keyboard,
     companies_list_keyboard,
+    feed_mode_keyboard,
     main_menu_keyboard,
     notification_keyboard,
     settings_keyboard,
@@ -24,37 +21,37 @@ from app.db.repo import (
     add_subscription,
     clear_subscriptions,
     ensure_user,
+    set_feed_mode,
     list_subscriptions,
     remove_subscription,
     set_notifications,
     update_settings,
 )
 from app.config import Settings
+from app.reports.service import build_report
 from app.utils.normalize import normalize_text
 
 router = Router()
 
 
-@lru_cache(maxsize=1)
-def _get_companies(companies_path: str) -> dict[str, list[str]]:
-    path = Path(companies_path)
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _find_candidates(query: str, companies: dict[str, list[str]]) -> list[tuple[str, str]]:
+def _find_candidates(query: str, companies) -> list[tuple[str, str]]:
     normalized_query = normalize_text(query)
     direct = []
-    for ticker, aliases in companies.items():
-        if normalized_query == normalize_text(ticker):
-            return [(ticker, aliases[0])]
-        if any(normalized_query in normalize_text(alias) for alias in aliases):
-            direct.append((ticker, aliases[0]))
+    for company in companies:
+        if normalized_query == normalize_text(company.ticker):
+            return [(company.ticker, company.name)]
+        if any(normalized_query in normalize_text(alias) for alias in company.aliases):
+            direct.append((company.ticker, company.name))
     if direct:
         return direct[:5]
 
-    choices = {ticker: " ".join(aliases) for ticker, aliases in companies.items()}
+    choices = {company.ticker: " ".join(company.aliases) for company in companies}
     matches = process.extract(normalized_query, choices, limit=5)
-    return [(ticker, companies[ticker][0]) for ticker, score, _ in matches if score > 60]
+    return [
+        (ticker, next(company.name for company in companies if company.ticker == ticker))
+        for ticker, score, _ in matches
+        if score > 60
+    ]
 
 
 @router.message(Command("start"))
@@ -68,6 +65,20 @@ async def cmd_help(message: Message) -> None:
     await message.answer(texts.HELP_TEXT, reply_markup=main_menu_keyboard())
 
 
+@router.message(Command("report"))
+async def cmd_report(
+    message: Message,
+    command: CommandObject,
+    settings: Settings,
+) -> None:
+    if not command.args:
+        await message.answer("Использование: /report <TICKER>")
+        return
+    ticker = command.args.strip().upper()
+    report_text = build_report(ticker, settings.report_peers_path)
+    await message.answer(report_text, reply_markup=main_menu_keyboard())
+
+
 @router.message(Command("add"))
 async def cmd_add(
     message: Message,
@@ -75,10 +86,10 @@ async def cmd_add(
     state: FSMContext,
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
-    companies_path: str,
+    company_directory,
 ) -> None:
     if command.args:
-        await handle_company_query(message, state, sessionmaker, settings, companies_path, command.args)
+        await handle_company_query(message, state, sessionmaker, settings, company_directory, command.args)
         return
     await state.set_state(AddCompanyState.waiting_for_query)
     await message.answer(texts.ASK_COMPANY_TEXT)
@@ -109,7 +120,7 @@ async def handle_company_query(
     state: FSMContext,
     sessionmaker: async_sessionmaker[AsyncSession],
     settings: Settings,
-    companies_path: str,
+    company_directory,
     query: str | None = None,
 ) -> None:
     async with sessionmaker() as session:
@@ -121,10 +132,13 @@ async def handle_company_query(
             settings.default_poll_seconds,
             settings.default_match_threshold,
             settings.default_hourly_limit,
+            settings.default_feed_mode,
+            settings.default_digest_frequency,
+            settings.summary_enabled,
         )
 
     await state.clear()
-    companies = _get_companies(companies_path)
+    companies = await company_directory.search(query or message.text)
     candidates = _find_candidates(query or message.text, companies)
     if not candidates:
         await message.answer("Не нашел совпадений. Попробуйте другой запрос.")
@@ -164,6 +178,11 @@ async def settings_menu(message: Message) -> None:
     await message.answer(texts.SETTINGS_TEXT, reply_markup=settings_keyboard())
 
 
+@router.message(F.text == "📰 Режим ленты")
+async def feed_mode_menu(message: Message) -> None:
+    await message.answer("Выберите режим ленты:", reply_markup=feed_mode_keyboard())
+
+
 @router.message(F.text == "❓ Помощь")
 async def help_menu(message: Message) -> None:
     await message.answer(texts.HELP_TEXT, reply_markup=main_menu_keyboard())
@@ -190,6 +209,37 @@ async def back_to_menu(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data == "settings:menu")
+async def settings_menu_callback(callback: CallbackQuery) -> None:
+    await callback.message.answer(texts.SETTINGS_TEXT, reply_markup=settings_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("mode:"))
+async def set_mode(
+    callback: CallbackQuery,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    mode = callback.data.split(":", 1)[1]
+    async with sessionmaker() as session:
+        await ensure_user(
+            session,
+            callback.from_user.id,
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
+            settings.default_feed_mode,
+            settings.default_digest_frequency,
+            settings.summary_enabled,
+        )
+        await set_feed_mode(session, callback.from_user.id, mode)
+    await callback.message.answer(f"Режим ленты обновлен: {mode}.", reply_markup=main_menu_keyboard())
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("add:"))
 async def add_company(
     callback: CallbackQuery,
@@ -206,6 +256,9 @@ async def add_company(
             settings.default_poll_seconds,
             settings.default_match_threshold,
             settings.default_hourly_limit,
+            settings.default_feed_mode,
+            settings.default_digest_frequency,
+            settings.summary_enabled,
         )
         added = await add_subscription(session, callback.from_user.id, ticker)
     if added:

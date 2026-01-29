@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
-
+from app.news.directory import Company
 from app.utils.normalize import contains_alias, normalize_text
 
 CONTEXT_KEYWORDS = {
@@ -31,20 +29,19 @@ class MatchResult:
 
 
 class CompanyMatcher:
-    def __init__(self, companies_path: Path) -> None:
-        self.companies = self._load_companies(companies_path)
+    def __init__(self, companies: list[Company]) -> None:
+        self._companies = companies
 
-    @staticmethod
-    def _load_companies(path: Path) -> dict[str, list[str]]:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return {ticker: aliases for ticker, aliases in data.items()}
+    def update(self, companies: list[Company]) -> None:
+        self._companies = companies
 
     def match(self, title: str, summary: str | None) -> dict[str, int]:
         results: dict[str, int] = {}
         title_norm = normalize_text(title)
         summary_norm = normalize_text(summary or "")
 
-        for ticker, aliases in self.companies.items():
+        for record in self._companies:
+            aliases = record.aliases
             title_match = contains_alias(title, aliases)
             summary_match = contains_alias(summary or "", aliases) if summary else False
 
@@ -55,11 +52,11 @@ class CompanyMatcher:
             if any(keyword in title_norm or keyword in summary_norm for keyword in CONTEXT_KEYWORDS):
                 score += 1
 
-            if ticker in NOISY_TICKERS or len(ticker) <= 4:
+            if record.ticker in NOISY_TICKERS or len(record.ticker) <= 4:
                 if not any(keyword in title_norm or keyword in summary_norm for keyword in CONTEXT_KEYWORDS):
-                    if not contains_alias(title, [ticker, f"${ticker}"]):
+                    if not contains_alias(title, [record.ticker, f"${record.ticker}"]):
                         continue
 
-            results[ticker] = score
+            results[record.ticker] = score
 
         return results

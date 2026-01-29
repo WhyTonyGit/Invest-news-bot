@@ -1,0 +1,4 @@
+{
+  "SBER": ["GAZP"],
+  "GAZP": ["SBER"]
+}

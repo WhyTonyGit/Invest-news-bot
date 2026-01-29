@@ -7,7 +7,8 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     buttons = [
         [KeyboardButton(text="➕ Добавить компанию"), KeyboardButton(text="📋 Мои компании")],
         [KeyboardButton(text="🔔 Включить уведомления"), KeyboardButton(text="🔕 Отключить уведомления")],
-        [KeyboardButton(text="⚙️ Настройки"), KeyboardButton(text="❓ Помощь")],
+        [KeyboardButton(text="📰 Режим ленты"), KeyboardButton(text="⚙️ Настройки")],
+        [KeyboardButton(text="❓ Помощь")],
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
@@ -41,6 +42,15 @@ def notification_keyboard(url: str, ticker: str) -> InlineKeyboardMarkup:
     )
 
 
+def market_notification_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔗 Открыть", url=url)],
+            [InlineKeyboardButton(text="⚙️ Настройки", callback_data="settings:menu")],
+        ]
+    )
+
+
 def settings_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -52,6 +62,16 @@ def settings_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🧠 Умный", callback_data="settings:match:3")],
             [InlineKeyboardButton(text="🚦 Лимит 10/ч", callback_data="settings:limit:10")],
             [InlineKeyboardButton(text="🚦 Лимит 20/ч", callback_data="settings:limit:20")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:menu")],
+        ]
+    )
+
+
+def feed_mode_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📌 Watchlist", callback_data="mode:watchlist")],
+            [InlineKeyboardButton(text="🌍 Market", callback_data="mode:market")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:menu")],
         ]
     )
