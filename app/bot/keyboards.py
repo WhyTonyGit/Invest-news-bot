@@ -11,6 +11,7 @@ from app.bot.constants import (
     SETTINGS_LIMIT_DELETE_BUTTON,
     SETTINGS_LIMIT_SET_BUTTON,
     SETTINGS_LIMIT_VALUE_TEMPLATE,
+    SETTINGS_ANALYSIS_BUTTON,
     SETTINGS_MATCH_ACCURATE_BUTTON,
     SETTINGS_MATCH_SMART_BUTTON,
     SETTINGS_NOTIFICATIONS_OFF,
@@ -68,8 +69,7 @@ def settings_keyboard(notifications_enabled: bool, hourly_limit: int | None) -> 
             [InlineKeyboardButton(text=notifications_text, callback_data="settings:notifications")],
             [InlineKeyboardButton(text=SETTINGS_POLLING_BUTTON, callback_data="settings:poll")],
             [InlineKeyboardButton(text=SETTINGS_QUIET_BUTTON, callback_data="settings:quiet")],
-            [InlineKeyboardButton(text=SETTINGS_MATCH_ACCURATE_BUTTON, callback_data="settings:match:4")],
-            [InlineKeyboardButton(text=SETTINGS_MATCH_SMART_BUTTON, callback_data="settings:match:3")],
+            [InlineKeyboardButton(text=SETTINGS_ANALYSIS_BUTTON, callback_data="settings:analysis")],
             [InlineKeyboardButton(text=limit_text, callback_data="settings:limit")],
         ]
     )
@@ -86,5 +86,14 @@ def limit_actions_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text=SETTINGS_LIMIT_CHANGE_BUTTON, callback_data="settings:limit:change")],
             [InlineKeyboardButton(text=SETTINGS_LIMIT_DELETE_BUTTON, callback_data="settings:limit:delete")],
+        ]
+    )
+
+
+def analysis_mode_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=SETTINGS_MATCH_ACCURATE_BUTTON, callback_data="settings:analysis:exact")],
+            [InlineKeyboardButton(text=SETTINGS_MATCH_SMART_BUTTON, callback_data="settings:analysis:smart")],
         ]
     )

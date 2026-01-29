@@ -7,10 +7,12 @@ from app.bot import texts
 from app.bot.handlers import (
     handle_hourly_limit,
     handle_poll_interval,
+    settings_analysis_menu,
+    settings_analysis_smart,
     settings_limit_menu,
     settings_notifications_toggle,
 )
-from app.bot.keyboards import limit_actions_keyboard
+from app.bot.keyboards import analysis_mode_keyboard, limit_actions_keyboard
 from app.bot.states import SettingsState
 
 
@@ -84,6 +86,54 @@ async def test_settings_limit_menu_shows_actions(monkeypatch: pytest.MonkeyPatch
     args, kwargs = callback.message.answer.call_args
     assert "Текущий лимит" in args[0]
     assert isinstance(kwargs.get("reply_markup"), type(limit_actions_keyboard()))
+
+
+@pytest.mark.asyncio
+async def test_settings_analysis_menu_shows_current(monkeypatch: pytest.MonkeyPatch) -> None:
+    sessionmaker = DummySessionmaker()
+    callback = SimpleNamespace(
+        from_user=SimpleNamespace(id=1),
+        message=SimpleNamespace(answer=AsyncMock()),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("app.bot.handlers.ensure_user", AsyncMock())
+    monkeypatch.setattr(
+        "app.bot.handlers.get_user",
+        AsyncMock(return_value=SimpleNamespace(match_threshold=4)),
+    )
+
+    await settings_analysis_menu(callback, sessionmaker, make_settings())
+
+    args, kwargs = callback.message.answer.call_args
+    assert "Сейчас: Точный" in args[0]
+    assert isinstance(kwargs.get("reply_markup"), type(analysis_mode_keyboard()))
+
+
+@pytest.mark.asyncio
+async def test_settings_analysis_smart_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    sessionmaker = DummySessionmaker()
+    callback = SimpleNamespace(
+        from_user=SimpleNamespace(id=1),
+        message=SimpleNamespace(answer=AsyncMock()),
+        answer=AsyncMock(),
+    )
+    monkeypatch.setattr("app.bot.handlers.ensure_user", AsyncMock())
+    update_settings = AsyncMock()
+    monkeypatch.setattr("app.bot.handlers.update_settings", update_settings)
+    monkeypatch.setattr(
+        "app.bot.handlers.get_user",
+        AsyncMock(return_value=SimpleNamespace(
+            notifications_enabled=True,
+            polling_interval=60,
+            hourly_limit=None,
+            match_threshold=3,
+        )),
+    )
+
+    await settings_analysis_smart(callback, sessionmaker, make_settings())
+
+    update_settings.assert_awaited_once()
+    assert "Умный" in callback.message.answer.call_args_list[0].args[0]
 
 
 @pytest.mark.asyncio

@@ -21,6 +21,7 @@ from app.bot.keyboards import (
     notification_keyboard,
     settings_keyboard,
     limit_actions_keyboard,
+    analysis_mode_keyboard,
     support_keyboard,
 )
 from app.bot.states import AddCompanyState, RemoveCompanyState, SettingsState
@@ -155,11 +156,26 @@ async def settings_menu(
         )
         user = await get_user(session, message.from_user.id)
     if user is None:
-        await message.answer(texts.SETTINGS_TEXT, reply_markup=main_menu_keyboard())
+        await message.answer(
+            texts.build_settings_text(
+                settings.default_notifications_enabled,
+                settings.default_poll_seconds,
+                settings.default_hourly_limit,
+                settings.default_match_threshold,
+            ),
+            reply_markup=main_menu_keyboard(),
+            parse_mode=None,
+        )
         return
     await message.answer(
-        texts.SETTINGS_TEXT,
+        texts.build_settings_text(
+            user.notifications_enabled,
+            user.polling_interval,
+            user.hourly_limit,
+            user.match_threshold,
+        ),
         reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+        parse_mode=None,
     )
 
 
@@ -254,10 +270,12 @@ async def settings_notifications_toggle(
         user = await get_user(session, callback.from_user.id)
     text = texts.NOTIFICATIONS_ON if enabled else texts.NOTIFICATIONS_OFF
     if user is None:
-        await callback.message.answer(text, reply_markup=main_menu_keyboard())
+        await callback.message.answer(text, reply_markup=main_menu_keyboard(), parse_mode=None)
     else:
         await callback.message.answer(
-            text, reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit)
+            text,
+            reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+            parse_mode=None,
         )
     await callback.answer()
 
@@ -299,7 +317,113 @@ async def settings_match(callback: CallbackQuery, sessionmaker: async_sessionmak
     threshold = int(callback.data.split(":")[-1])
     async with sessionmaker() as session:
         await update_settings(session, callback.from_user.id, match_threshold=threshold)
-    await callback.message.answer("Уровень совпадения обновлен.")
+        user = await get_user(session, callback.from_user.id)
+    await callback.message.answer("Режим анализа обновлен.")
+    if user is not None:
+        await callback.message.answer(
+            texts.build_settings_text(
+                user.notifications_enabled,
+                user.polling_interval,
+                user.hourly_limit,
+                user.match_threshold,
+            ),
+            reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+            parse_mode=None,
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "settings:analysis")
+async def settings_analysis_menu(
+    callback: CallbackQuery,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    async with sessionmaker() as session:
+        await ensure_user(
+            session,
+            callback.from_user.id,
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
+        )
+        user = await get_user(session, callback.from_user.id)
+    if user is None:
+        await callback.message.answer("Не удалось загрузить настройки.")
+    else:
+        await callback.message.answer(
+            texts.build_analysis_mode_text(user.match_threshold),
+            reply_markup=analysis_mode_keyboard(),
+            parse_mode=None,
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "settings:analysis:exact")
+async def settings_analysis_exact(
+    callback: CallbackQuery,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    async with sessionmaker() as session:
+        await ensure_user(
+            session,
+            callback.from_user.id,
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
+        )
+        await update_settings(session, callback.from_user.id, match_threshold=4)
+        user = await get_user(session, callback.from_user.id)
+    await callback.message.answer("Режим анализа установлен: Точный.")
+    if user is not None:
+        await callback.message.answer(
+            texts.build_settings_text(
+                user.notifications_enabled,
+                user.polling_interval,
+                user.hourly_limit,
+                user.match_threshold,
+            ),
+            reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+            parse_mode=None,
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "settings:analysis:smart")
+async def settings_analysis_smart(
+    callback: CallbackQuery,
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> None:
+    async with sessionmaker() as session:
+        await ensure_user(
+            session,
+            callback.from_user.id,
+            settings.default_notifications_enabled,
+            settings.default_quiet_hours,
+            settings.default_poll_seconds,
+            settings.default_match_threshold,
+            settings.default_hourly_limit,
+        )
+        await update_settings(session, callback.from_user.id, match_threshold=3)
+        user = await get_user(session, callback.from_user.id)
+    await callback.message.answer("Режим анализа установлен: Умный.")
+    if user is not None:
+        await callback.message.answer(
+            texts.build_settings_text(
+                user.notifications_enabled,
+                user.polling_interval,
+                user.hourly_limit,
+                user.match_threshold,
+            ),
+            reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+            parse_mode=None,
+        )
     await callback.answer()
 
 
@@ -362,8 +486,14 @@ async def settings_limit_delete(
     await callback.message.answer("Лимит новостей удален.")
     if user is not None:
         await callback.message.answer(
-            texts.SETTINGS_TEXT,
+            texts.build_settings_text(
+                user.notifications_enabled,
+                user.polling_interval,
+                user.hourly_limit,
+                user.match_threshold,
+            ),
             reply_markup=settings_keyboard(user.notifications_enabled, user.hourly_limit),
+            parse_mode=None,
         )
     await callback.answer()
 
