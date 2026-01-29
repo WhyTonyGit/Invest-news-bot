@@ -31,6 +31,7 @@ from app.news.dedupe import canonical_hash
 from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
 from app.news.parser import parse_feed
+from app.news.presenter import SourceRef, build_news_message
 from app.news.service import NewsCandidate, NewsCluster, NewsService, impact_score
 from app.news.summary import SummaryService
 
@@ -221,18 +222,15 @@ class NewsScheduler:
         summary_line = ""
         if settings and settings.summary_enabled:
             summary_line = await self._get_or_build_summary(news)
-        sources_lines = "\n".join(
-            f"• <a href=\"{url}\">{name}</a>" for name, url, _ in news.sources[:5]
-        )
-        if not sources_lines:
-            sources_lines = "—"
-        text = (
-            f"<b>{news.title}</b>\n"
-            f"{summary_line}\n"
-            f"Компании: {companies}\n"
-            f"Категория: {news.category} · Impact: {impact_score(news.category)}\n"
-            f"Источники:\n{sources_lines}\n"
-            f"Время: {published}"
+        sources = [SourceRef(name=name, url=url) for name, url, _ in news.sources]
+        text = build_news_message(
+            title=news.title,
+            summary_line=summary_line,
+            companies=companies,
+            category=news.category,
+            impact=impact_score(news.category),
+            sources=sources,
+            published=published,
         )
         if news.mentions:
             for ticker in news.mentions.keys():

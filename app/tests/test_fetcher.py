@@ -1,7 +1,6 @@
 import aiohttp
 import pytest
 
-pytest.importorskip("pytest_asyncio")
 aioresponses = pytest.importorskip("aioresponses").aioresponses
 
 from app.news.fetcher import FeedFetcher

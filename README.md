@@ -61,7 +61,7 @@ requirements.txt
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Создать `.env` на основе `.env.example`, указать `BOT_TOKEN`.
+2. Создать `.env` на основе `.env.example`, указать `TELEGRAM_BOT_TOKEN`.
 3. Запустить бота:
    ```bash
    python -m app.main
@@ -103,7 +103,12 @@ COMPANIES_DATASET_PATH=./app/data/companies.json
 
 ## Тесты
 ```bash
-pytest
+pytest -m "not integration"
+```
+
+Интеграционный тест Telegram (только вручную, если заданы переменные окружения):
+```bash
+TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... pytest -m integration
 ```
 
 ## Примечания

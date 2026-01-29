@@ -34,9 +34,10 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    bot_token = os.environ.get("BOT_TOKEN", "").strip()
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("BOT_TOKEN", "")
+    bot_token = bot_token.strip()
     if not bot_token:
-        raise RuntimeError("BOT_TOKEN is required")
+        raise RuntimeError("TELEGRAM_BOT_TOKEN is required")
 
     return Settings(
         bot_token=bot_token,

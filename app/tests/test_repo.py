@@ -1,7 +1,5 @@
 import pytest
 
-pytest.importorskip("pytest_asyncio")
-
 from app.db.models import Base
 from app.db.repo import (
     add_subscription,
