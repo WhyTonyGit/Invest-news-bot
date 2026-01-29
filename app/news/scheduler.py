@@ -25,6 +25,7 @@ from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
 from app.news.models import PreparedNews
 from app.news.parser import parse_feed
+from app.news.time_utils import normalize_ts
 from app.news.presenters import build_news_text
 
 LOGGER = logging.getLogger("news.scheduler")
@@ -71,7 +72,9 @@ class NewsScheduler:
         latest_ts: datetime | None = None
         prepared: list[PreparedNews] = []
         for item in items:
-            if state and state.last_item_ts and item.published <= state.last_item_ts:
+            published = normalize_ts(item.published)
+            last_item_ts = normalize_ts(state.last_item_ts) if state else None
+            if last_item_ts and published and published <= last_item_ts:
                 continue
             mentions = await self.matcher.match(item.title, item.summary)
             if not mentions:
@@ -84,15 +87,21 @@ class NewsScheduler:
                     title=item.title,
                     summary=item.summary,
                     url=item.link,
-                    published_at=item.published,
+                    published_at=published or item.published,
                     source_name=source.name,
                     mentions=mentions,
                     canonical_hash=hash_value,
                 )
             )
-            latest_ts = max(latest_ts or item.published, item.published)
+            if published:
+                latest_ts = max(latest_ts or published, published)
 
-        await self._update_state(source.id, etag_new or result.etag, modified_new or result.last_modified, latest_ts)
+        await self._update_state(
+            source.id,
+            etag_new or result.etag,
+            modified_new or result.last_modified,
+            normalize_ts(latest_ts),
+        )
 
         for news in prepared:
             await self._store_and_deliver(news, source.id)

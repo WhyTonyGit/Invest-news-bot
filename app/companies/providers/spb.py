@@ -29,11 +29,18 @@ class SpbProvider:
         combined = f"{exchange} {board}"
         return "SPB" in combined or "SPBX" in combined
 
-    async def fetch(self, session: aiohttp.ClientSession) -> list[Company]:
+    async def fetch(self, session: aiohttp.ClientSession | None = None) -> list[Company]:
         url = self._build_url()
-        async with session.get(url) as response:
-            response.raise_for_status()
-            payload = await response.json()
+        if session is None:
+            timeout = aiohttp.ClientTimeout(total=15, connect=5, sock_read=10)
+            async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as owned_session:
+                async with owned_session.get(url) as response:
+                    response.raise_for_status()
+                    payload = await response.json()
+        else:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                payload = await response.json()
         if not isinstance(payload, list):
             LOGGER.warning("Unexpected SPB payload format: %s", type(payload))
             return []

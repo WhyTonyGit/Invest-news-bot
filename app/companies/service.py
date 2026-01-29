@@ -22,7 +22,7 @@ class CompanyProvider(Protocol):
     def name(self) -> str:  # pragma: no cover - protocol definition
         ...
 
-    async def fetch(self, session: aiohttp.ClientSession) -> list[Company]:
+    async def fetch(self, session: aiohttp.ClientSession | None = None) -> list[Company]:
         ...
 
 
@@ -105,8 +105,8 @@ class CompanyDirectoryService:
 
             errors: list[str] = []
             companies: list[Company] = []
-            timeout = aiohttp.ClientTimeout(total=self._request_timeout)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            timeout = aiohttp.ClientTimeout(total=15, connect=5, sock_read=10)
+            async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
                 tasks = [self._fetch_provider(provider, session, errors) for provider in self._providers]
                 results = await asyncio.gather(*tasks)
             provider_counts: dict[str, int] = {}

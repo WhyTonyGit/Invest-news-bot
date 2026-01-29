@@ -47,7 +47,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    await message.answer(texts.HELP_TEXT, reply_markup=support_keyboard())
+    await message.answer(texts.HELP_TEXT, reply_markup=support_keyboard(), parse_mode=None)
 
 
 @router.message(Command("add"))
@@ -154,7 +154,7 @@ async def settings_menu(message: Message) -> None:
 
 @router.message(F.text == HELP_BUTTON)
 async def help_menu(message: Message) -> None:
-    await message.answer(texts.HELP_TEXT, reply_markup=support_keyboard())
+    await message.answer(texts.HELP_TEXT, reply_markup=support_keyboard(), parse_mode=None)
 
 
 @router.callback_query(F.data == "subs:remove")

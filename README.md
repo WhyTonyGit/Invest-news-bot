@@ -71,6 +71,12 @@ requirements.txt
 docker compose up --build
 ```
 
+## Диагностика MOEX в контейнере
+```bash
+python -m app.scripts.check_moex_connectivity
+curl -I https://iss.moex.com/iss/engines/stock/markets/shares/securities.json
+```
+
 ## Как добавить RSS-ленту
 Добавьте запись в `app/news/sources.py`:
 ```python

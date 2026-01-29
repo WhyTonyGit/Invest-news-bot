@@ -19,6 +19,7 @@ async def test_help_button() -> None:
     assert SUPPORT_HANDLE in args[0]
     assert HELP_TEXT in args[0]
     assert kwargs.get("reply_markup") is not None
+    assert kwargs.get("parse_mode") is None
 
 
 def test_main_menu_unique_buttons() -> None:

@@ -4,6 +4,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+import time
+
+import aiohttp
+from aiohttp.client_reqrep import ConnectionKey
 
 from app.companies.models import Company
 from app.companies.service import CompanyDirectoryService
@@ -134,3 +138,34 @@ async def test_search_contract(tmp_path: Path) -> None:
 
     assert results
     assert results[0].ticker == "SBER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_connect_error_fast(tmp_path: Path) -> None:
+    cache_path = tmp_path / "cache.json"
+    connection_key = ConnectionKey(
+        host="iss.moex.com",
+        port=443,
+        is_ssl=True,
+        ssl=None,
+        proxy=None,
+        proxy_auth=None,
+        proxy_headers_hash=None,
+    )
+    provider = FakeProvider(
+        "MOEX",
+        exc=aiohttp.ClientConnectorError(connection_key, OSError("boom")),
+    )
+    service = CompanyDirectoryService(
+        providers=[provider],
+        cache_path=cache_path,
+        fallback_path=None,
+        ttl=timedelta(hours=0),
+    )
+
+    start = time.monotonic()
+    result = await service.refresh(force=True)
+    duration = time.monotonic() - start
+
+    assert duration < 1.0
+    assert result.companies == []

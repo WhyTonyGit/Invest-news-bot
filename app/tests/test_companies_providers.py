@@ -32,6 +32,29 @@ class FakeSession:
         return FakeResponse(payload)
 
 
+def test_moex_provider_uses_trust_env_and_timeouts(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class DummySession:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["timeout"] = kwargs.get("timeout")
+            captured["trust_env"] = kwargs.get("trust_env")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("app.companies.providers.moex.aiohttp.ClientSession", DummySession)
+    provider = MoexProvider(base_url="https://iss.moex.com/iss")
+    session = provider._create_session()
+
+    assert captured["trust_env"] is True
+    timeout = captured["timeout"]
+    assert timeout.total == 15
+    assert timeout.connect == 5
+    assert timeout.sock_read == 10
+    assert session is not None
+
+
 @pytest.mark.asyncio
 async def test_moex_provider_pagination() -> None:
     provider = MoexProvider(base_url="https://iss.moex.com/iss", page_size=2)
