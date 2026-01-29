@@ -75,3 +75,12 @@ def feed_mode_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:menu")],
         ]
     )
+
+
+def help_support_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Написать в поддержку", url="https://t.me/its_for_git")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back:menu")],
+        ]
+    )

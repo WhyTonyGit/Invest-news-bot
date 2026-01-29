@@ -12,6 +12,7 @@ from app.bot.keyboards import (
     add_company_keyboard,
     companies_list_keyboard,
     feed_mode_keyboard,
+    help_support_keyboard,
     main_menu_keyboard,
     notification_keyboard,
     settings_keyboard,
@@ -34,24 +35,23 @@ from app.utils.normalize import normalize_text
 router = Router()
 
 
-def _find_candidates(query: str, companies) -> list[tuple[str, str]]:
+def _find_candidates(query: str, companies) -> list:
     normalized_query = normalize_text(query)
     direct = []
     for company in companies:
         if normalized_query == normalize_text(company.ticker):
-            return [(company.ticker, company.name)]
+            return [company]
+        if normalized_query == normalize_text(company.name):
+            return [company]
         if any(normalized_query in normalize_text(alias) for alias in company.aliases):
-            direct.append((company.ticker, company.name))
+            direct.append(company)
     if direct:
         return direct[:5]
 
-    choices = {company.ticker: " ".join(company.aliases) for company in companies}
+    choices = {company.ticker: " ".join([company.name, *company.aliases]) for company in companies}
     matches = process.extract(normalized_query, choices, limit=5)
-    return [
-        (ticker, next(company.name for company in companies if company.ticker == ticker))
-        for ticker, score, _ in matches
-        if score > 60
-    ]
+    matched_tickers = {ticker for ticker, score, _ in matches if score > 60}
+    return [company for company in companies if company.ticker in matched_tickers]
 
 
 @router.message(Command("start"))
@@ -62,7 +62,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
-    await message.answer(texts.HELP_TEXT, reply_markup=main_menu_keyboard())
+    await message.answer(texts.HELP_TEXT, reply_markup=help_support_keyboard())
 
 
 @router.message(Command("report"))
@@ -143,7 +143,8 @@ async def handle_company_query(
     if not candidates:
         await message.answer("Не нашел совпадений. Попробуйте другой запрос.")
         return
-    await message.answer("Выберите компанию:", reply_markup=add_company_keyboard(candidates))
+    options = [(company.ticker, company.name) for company in candidates]
+    await message.answer("Выберите компанию:", reply_markup=add_company_keyboard(options))
 
 
 @router.message(F.text == "📋 Мои компании")
@@ -185,7 +186,7 @@ async def feed_mode_menu(message: Message) -> None:
 
 @router.message(F.text == "❓ Помощь")
 async def help_menu(message: Message) -> None:
-    await message.answer(texts.HELP_TEXT, reply_markup=main_menu_keyboard())
+    await message.answer(texts.HELP_TEXT, reply_markup=help_support_keyboard())
 
 
 @router.callback_query(F.data == "subs:remove")

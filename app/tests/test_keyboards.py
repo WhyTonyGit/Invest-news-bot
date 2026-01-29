@@ -5,6 +5,7 @@ def test_main_menu_keyboard_has_feed_mode() -> None:
     keyboard = main_menu_keyboard()
     buttons = [button.text for row in keyboard.keyboard for button in row]
     assert "📰 Режим ленты" in buttons
+    assert len(buttons) == len(set(buttons))
 
 
 def test_feed_mode_keyboard_buttons() -> None:

@@ -75,6 +75,109 @@ async def test_refresh_fallback_on_error(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_refresh_partial_success(tmp_path: Path) -> None:
+    now = datetime.now(timezone.utc)
+    ok_provider = FakeProvider(
+        [
+            Company(
+                exchange="MOEX",
+                ticker="SBER",
+                name="Сбербанк",
+                isin=None,
+                type="share",
+                currency="RUB",
+                aliases=["SBER"],
+                source={"provider": "ok"},
+                updated_at=now,
+            )
+        ]
+    )
+    failing_provider = FakeProvider([], should_fail=True)
+    service = CompanyDirectoryService(
+        providers=[ok_provider, failing_provider],
+        cache_path=tmp_path / "companies_cache.json",
+        ttl_hours=24,
+        fallback_path=tmp_path / "fallback.json",
+    )
+    result = await service.refresh(force=True)
+    assert result.updated is True
+    assert result.count == 1
+    companies = await service.get_all()
+    assert companies[0].ticker == "SBER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_uses_cache_when_providers_fail(tmp_path: Path) -> None:
+    now = datetime.now(timezone.utc)
+    cache_path = tmp_path / "companies_cache.json"
+    cache_payload = {
+        "updated_at": now.isoformat(),
+        "companies": [
+            {
+                "exchange": "MOEX",
+                "ticker": "SBER",
+                "name": "Сбербанк",
+                "isin": None,
+                "type": "share",
+                "currency": "RUB",
+                "aliases": ["SBER"],
+                "source": {"provider": "cache"},
+                "updated_at": now.isoformat(),
+            }
+        ],
+    }
+    cache_path.write_text(json.dumps(cache_payload), encoding="utf-8")
+    failing_provider = FakeProvider([], should_fail=True)
+    service = CompanyDirectoryService(
+        providers=[failing_provider],
+        cache_path=cache_path,
+        ttl_hours=0,
+        fallback_path=tmp_path / "fallback.json",
+    )
+    await service.startup()
+    result = await service.refresh(force=True)
+    assert result.updated is False
+    companies = await service.get_all()
+    assert companies[0].ticker == "SBER"
+
+
+@pytest.mark.asyncio
+async def test_refresh_no_data_no_fallback(tmp_path: Path) -> None:
+    failing_provider = FakeProvider([], should_fail=True)
+    service = CompanyDirectoryService(
+        providers=[failing_provider],
+        cache_path=tmp_path / "companies_cache.json",
+        ttl_hours=0,
+        fallback_path=tmp_path / "fallback.json",
+    )
+    result = await service.refresh(force=True)
+    assert result.updated is False
+    companies = await service.get_all()
+    assert companies == []
+
+
+@pytest.mark.asyncio
+async def test_refresh_ttl_expired_triggers_provider(tmp_path: Path) -> None:
+    now = datetime.now(timezone.utc)
+    cache_path = tmp_path / "companies_cache.json"
+    cache_payload = {
+        "updated_at": now.isoformat(),
+        "companies": [],
+    }
+    cache_path.write_text(json.dumps(cache_payload), encoding="utf-8")
+    provider = FakeProvider([])
+    service = CompanyDirectoryService(
+        providers=[provider],
+        cache_path=cache_path,
+        ttl_hours=0,
+        fallback_path=tmp_path / "fallback.json",
+    )
+    await service.startup()
+    await service.refresh(force=False)
+    assert provider.calls == 1
+
+
+@pytest.mark.asyncio
 async def test_search_matches_aliases(tmp_path: Path) -> None:
     now = datetime.now(timezone.utc)
     provider = FakeProvider(

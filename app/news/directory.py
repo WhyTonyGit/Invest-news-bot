@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -11,6 +12,8 @@ import aiohttp
 from rapidfuzz import process
 
 from app.utils.normalize import normalize_text
+
+LOGGER = logging.getLogger("news.directory")
 
 
 @dataclass(frozen=True)
@@ -176,6 +179,8 @@ class CompanyDirectoryService:
     async def search(self, query: str, limit: int = 5) -> list[Company]:
         query_norm = normalize_text(query)
         companies = await self.get_all()
+        if not companies:
+            LOGGER.debug("Company search requested but directory is empty")
         direct: list[Company] = []
         for company in companies:
             if query_norm == normalize_text(company.ticker):
@@ -186,26 +191,38 @@ class CompanyDirectoryService:
             return direct[:limit]
         choices = {company.ticker: " ".join(company.aliases) for company in companies}
         matches = process.extract(query_norm, choices, limit=limit)
-        return [next(c for c in companies if c.ticker == ticker) for ticker, score, _ in matches if score > 60]
+        results = [next(c for c in companies if c.ticker == ticker) for ticker, score, _ in matches if score > 60]
+        if not results:
+            LOGGER.debug("Company search returned no matches for query=%s", query)
+        return results
 
     async def refresh(self, force: bool = False) -> RefreshResult:
         if not force and not self._is_stale():
             return RefreshResult(updated=False, count=len(self._companies))
-        try:
-            records: list[Company] = []
-            for provider in self._providers:
-                records.extend(await provider.fetch())
+        records: list[Company] = []
+        errors: list[str] = []
+        for provider in self._providers:
+            try:
+                provider_records = await provider.fetch()
+                LOGGER.debug("Provider %s returned %s records", provider.__class__.__name__, len(provider_records))
+                records.extend(provider_records)
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("Provider %s failed: %s", provider.__class__.__name__, exc)
+                errors.append(str(exc))
+
+        if records:
             merged = _merge_companies(records)
             self._companies = merged
             self._last_updated = datetime.now(timezone.utc)
             self._save_cache()
-            return RefreshResult(updated=True, count=len(self._companies))
-        except Exception as exc:  # noqa: BLE001
-            if not self._companies:
-                self._companies = self._load_fallback()
-            return RefreshResult(updated=False, count=len(self._companies), error=str(exc))
-        finally:
+            LOGGER.debug("Company directory refreshed: %s records", len(self._companies))
             self._refresh_task = None
+            return RefreshResult(updated=True, count=len(self._companies), error="; ".join(errors) or None)
+
+        if not self._companies:
+            self._companies = self._load_fallback()
+        self._refresh_task = None
+        return RefreshResult(updated=False, count=len(self._companies), error="; ".join(errors) or None)
 
     def _is_stale(self) -> bool:
         if not self._last_updated:
