@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -13,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.bot.handlers import router
 from app.bot.middlewares import DatabaseMiddleware
-from app.config import BASE_DIR, load_settings
+from app.companies import build_company_directory
+from app.config import load_settings
 from app.db.models import Base, FeedSource
 from app.db.repo import upsert_sources
 from app.db.session import create_engine, create_sessionmaker
@@ -51,11 +51,12 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    companies_path = str(BASE_DIR / "data" / "companies_ru.json")
-    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, companies_path))
+    company_directory = build_company_directory(settings)
+    await company_directory.refresh(force=False)
+    dp.update.middleware(DatabaseMiddleware(sessionmaker, settings, company_directory))
     LOGGER.info("DatabaseMiddleware enabled; sessionmaker injected into handlers.")
 
-    matcher = CompanyMatcher(Path(companies_path))
+    matcher = CompanyMatcher(company_directory)
     fetcher = FeedFetcher(settings.request_timeout, settings.fetch_concurrency)
     scheduler = NewsScheduler(matcher, sessionmaker, fetcher, bot)
 

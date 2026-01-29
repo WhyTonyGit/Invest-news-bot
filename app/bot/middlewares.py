@@ -6,6 +6,7 @@ from typing import Any
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.companies.service import CompanyDirectoryService
 from app.config import Settings
 
 
@@ -14,11 +15,11 @@ class DatabaseMiddleware(BaseMiddleware):
         self,
         sessionmaker: async_sessionmaker[AsyncSession],
         settings: Settings,
-        companies_path: str,
+        directory: CompanyDirectoryService,
     ) -> None:
         self._sessionmaker = sessionmaker
         self._settings = settings
-        self._companies_path = companies_path
+        self._directory = directory
 
     async def __call__(
         self,
@@ -28,5 +29,5 @@ class DatabaseMiddleware(BaseMiddleware):
     ) -> Any:
         data["sessionmaker"] = self._sessionmaker
         data["settings"] = self._settings
-        data["companies_path"] = self._companies_path
+        data["company_directory"] = self._directory
         return await handler(event, data)

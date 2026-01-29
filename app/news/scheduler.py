@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
@@ -24,20 +23,11 @@ from app.db.repo import (
 from app.news.dedupe import canonical_hash, is_similar
 from app.news.fetcher import FeedFetcher
 from app.news.matcher import CompanyMatcher
+from app.news.models import PreparedNews
 from app.news.parser import parse_feed
+from app.news.presenters import build_news_text
 
 LOGGER = logging.getLogger("news.scheduler")
-
-
-@dataclass
-class PreparedNews:
-    title: str
-    summary: str | None
-    url: str
-    published_at: datetime
-    source_name: str
-    mentions: dict[str, int]
-    canonical_hash: str
 
 
 class NewsScheduler:
@@ -83,7 +73,7 @@ class NewsScheduler:
         for item in items:
             if state and state.last_item_ts and item.published <= state.last_item_ts:
                 continue
-            mentions = self.matcher.match(item.title, item.summary)
+            mentions = await self.matcher.match(item.title, item.summary)
             if not mentions:
                 continue
             hash_value = canonical_hash(item.title, item.summary)
@@ -182,17 +172,7 @@ class NewsScheduler:
         return not (now >= start or now <= end)
 
     async def _send_news(self, tg_id: int, news: PreparedNews) -> None:
-        companies = " ".join(f"#{ticker}" for ticker in news.mentions.keys())
-        published = news.published_at.astimezone(self.tz).strftime("%H:%M МСК")
-        summary = (news.summary or "").strip()
-        summary_line = (summary[:200] + "...") if summary else ""
-        text = (
-            f"<b>{news.title}</b>\n"
-            f"{summary_line}\n"
-            f"Компании: {companies}\n"
-            f"Источник: {news.source_name}\n"
-            f"Время: {published}"
-        )
+        text = build_news_text(news, self.tz)
         for ticker in news.mentions.keys():
             await self.bot.send_message(
                 tg_id,

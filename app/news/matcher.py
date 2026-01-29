@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from pathlib import Path
 
+from app.companies.service import CompanyDirectoryService
 from app.utils.normalize import contains_alias, normalize_text
 
 CONTEXT_KEYWORDS = {
@@ -31,22 +30,22 @@ class MatchResult:
 
 
 class CompanyMatcher:
-    def __init__(self, companies_path: Path) -> None:
-        self.companies = self._load_companies(companies_path)
+    def __init__(self, directory: CompanyDirectoryService) -> None:
+        self.directory = directory
 
-    @staticmethod
-    def _load_companies(path: Path) -> dict[str, list[str]]:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return {ticker: aliases for ticker, aliases in data.items()}
-
-    def match(self, title: str, summary: str | None) -> dict[str, int]:
+    async def match(self, title: str, summary: str | None) -> dict[str, int]:
+        companies = await self.directory.get_alias_map()
         results: dict[str, int] = {}
         title_norm = normalize_text(title)
         summary_norm = normalize_text(summary or "")
 
-        for ticker, aliases in self.companies.items():
-            title_match = contains_alias(title, aliases)
-            summary_match = contains_alias(summary or "", aliases) if summary else False
+        for ticker, aliases in companies.items():
+            alias_list = list(aliases)
+            if ticker not in alias_list:
+                alias_list.append(ticker)
+            alias_list.append(f"${ticker}")
+            title_match = contains_alias(title, alias_list)
+            summary_match = contains_alias(summary or "", alias_list) if summary else False
 
             if not title_match and not summary_match:
                 continue

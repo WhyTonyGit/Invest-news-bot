@@ -22,6 +22,10 @@
     keyboards.py
     states.py
     texts.py
+  companies/
+    providers/
+    service.py
+    models.py
   news/
     fetcher.py
     parser.py
@@ -29,6 +33,8 @@
     matcher.py
     scheduler.py
     sources.py
+  scripts/
+    refresh_companies.py
   db/
     models.py
     session.py
@@ -54,7 +60,7 @@ requirements.txt
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Создать `.env` на основе `.env.example`, указать `BOT_TOKEN`.
+2. Создать `.env` на основе `.env.example`, указать `TELEGRAM_BOT_TOKEN`.
 3. Запустить бота:
    ```bash
    python -m app.main
@@ -78,9 +84,24 @@ DEFAULT_SOURCES.append(
 
 ## Тесты
 ```bash
-pytest
+pytest -m "not integration"
+```
+
+### Интеграционный тест MOEX (opt-in)
+```bash
+RUN_MOEX_INTEGRATION=1 pytest -m integration
 ```
 
 ## Примечания
 - По умолчанию используется SQLite. Для Postgres установите `DB_URL` в `.env`.
 - Поллинг лент по умолчанию — каждые 60 секунд.
+
+## Каталог компаний (MOEX + SPB)
+- Каталог обновляется через API MOEX ISS и Alor OpenAPI (SPB), а не из локального JSON.
+- Кэш хранится в `app/data/companies_cache.json` (путь настраивается через `COMPANIES_CACHE_PATH`).
+- TTL обновления: `COMPANIES_REFRESH_TTL_HOURS` (по умолчанию 24 часа).
+- Если API недоступно, используется кэш; если кэша нет — статический fallback-файл `app/data/companies_ru.json`.
+- Ручное обновление кэша:
+  ```bash
+  python -m app.scripts.refresh_companies --force
+  ```
